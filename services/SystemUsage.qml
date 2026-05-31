@@ -4,6 +4,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Caelestia.Config
+import Caelestia.Internal
 
 Singleton {
     id: root
@@ -25,6 +26,18 @@ Singleton {
     property real memTotal
     readonly property real memPerc: memTotal > 0 ? memUsed / memTotal : 0
 
+    // Rolling usage history (0..1) for the dashboard sparkline graphs
+    readonly property int historyLength: 30
+    readonly property CircularBuffer cpuBuffer: _cpuBuffer
+    readonly property CircularBuffer gpuBuffer: _gpuBuffer
+    readonly property CircularBuffer memBuffer: _memBuffer
+
+    // Per-widget graph point interval (ms): config value, or the measure interval when 0.
+    // Measurements within one point interval are averaged into a single graph point.
+    readonly property int cpuGraphInterval: GlobalConfig.dashboard.performance.cpuGraphInterval > 0 ? GlobalConfig.dashboard.performance.cpuGraphInterval : GlobalConfig.dashboard.resourceUpdateInterval
+    readonly property int gpuGraphInterval: GlobalConfig.dashboard.performance.gpuGraphInterval > 0 ? GlobalConfig.dashboard.performance.gpuGraphInterval : GlobalConfig.dashboard.resourceUpdateInterval
+    readonly property int memGraphInterval: GlobalConfig.dashboard.performance.memGraphInterval > 0 ? GlobalConfig.dashboard.performance.memGraphInterval : GlobalConfig.dashboard.resourceUpdateInterval
+
     // Storage properties (aggregated)
     readonly property real storagePerc: {
         let totalUsed = 0;
@@ -43,6 +56,66 @@ Singleton {
     property real lastCpuTotal
 
     property int refCount
+
+    // Graph aggregation: accumulate measurements, push their average once per graph interval
+    property real _cpuSum: 0
+    property int _cpuCount: 0
+    property real _gpuSum: 0
+    property int _gpuCount: 0
+    property real _memSum: 0
+    property int _memCount: 0
+
+    // Drop the first sample of each measurement session — the shell/dashboard startup spikes
+    // the GPU (and is generally unreliable), so it shouldn't become a graph point.
+    property bool _cpuWarmed: false
+    property bool _gpuWarmed: false
+    property bool _memWarmed: false
+
+    function _ticksPerPoint(graphInterval: int): int {
+        return Math.max(1, Math.round(graphInterval / GlobalConfig.dashboard.resourceUpdateInterval));
+    }
+
+    function _pushCpu(): void {
+        if (!_cpuWarmed) {
+            _cpuWarmed = true;
+            return;
+        }
+        _cpuSum += root.cpuPerc;
+        _cpuCount++;
+        if (_cpuCount >= _ticksPerPoint(root.cpuGraphInterval)) {
+            _cpuBuffer.push(_cpuSum / _cpuCount);
+            _cpuSum = 0;
+            _cpuCount = 0;
+        }
+    }
+
+    function _pushGpu(): void {
+        if (!_gpuWarmed) {
+            _gpuWarmed = true;
+            return;
+        }
+        _gpuSum += root.gpuPerc;
+        _gpuCount++;
+        if (_gpuCount >= _ticksPerPoint(root.gpuGraphInterval)) {
+            _gpuBuffer.push(_gpuSum / _gpuCount);
+            _gpuSum = 0;
+            _gpuCount = 0;
+        }
+    }
+
+    function _pushMem(): void {
+        if (!_memWarmed) {
+            _memWarmed = true;
+            return;
+        }
+        _memSum += root.memPerc;
+        _memCount++;
+        if (_memCount >= _ticksPerPoint(root.memGraphInterval)) {
+            _memBuffer.push(_memSum / _memCount);
+            _memSum = 0;
+            _memCount = 0;
+        }
+    }
 
     function cleanCpuName(name: string): string {
         return name.replace(/\(R\)|\(TM\)|CPU|\d+(?:th|nd|rd|st) Gen |Core |Processor/gi, "").replace(/\s+/g, " ").trim();
@@ -78,18 +151,50 @@ Singleton {
         };
     }
 
+    // Always-on background service: the graph feeders (CPU/GPU/memory) measure continuously so
+    // history is already populated whenever a widget is shown, not just while the dashboard is open.
+    // The first sample is dropped via the _*Warmed flags (shell-start GPU spike).
     Timer {
-        running: root.refCount > 0
+        running: true
         interval: GlobalConfig.dashboard.resourceUpdateInterval
         repeat: true
         triggeredOnStart: true
         onTriggered: {
             stat.reload();
             meminfo.reload();
-            storage.running = true;
             gpuUsage.running = true;
+        }
+    }
+
+    // On-demand: storage usage and temperatures are only displayed inside the dashboard, so they
+    // measure only while something refs the service (refCount > 0) to avoid needless lsblk/sensors runs.
+    Timer {
+        running: root.refCount > 0
+        interval: GlobalConfig.dashboard.resourceUpdateInterval
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: {
+            storage.running = true;
             sensors.running = true;
         }
+    }
+
+    CircularBuffer {
+        id: _cpuBuffer
+
+        capacity: root.historyLength + 1
+    }
+
+    CircularBuffer {
+        id: _gpuBuffer
+
+        capacity: root.historyLength + 1
+    }
+
+    CircularBuffer {
+        id: _memBuffer
+
+        capacity: root.historyLength + 1
     }
 
     // One-time CPU info detection (name)
@@ -121,6 +226,7 @@ Singleton {
 
                 root.lastCpuTotal = total;
                 root.lastCpuIdle = idle;
+                root._pushCpu();
             }
         }
     }
@@ -133,6 +239,7 @@ Singleton {
             const data = text();
             root.memTotal = parseInt(data.match(/MemTotal: *(\d+)/)[1], 10) || 1;
             root.memUsed = (root.memTotal - parseInt(data.match(/MemAvailable: *(\d+)/)[1], 10)) || 0;
+            root._pushMem();
         }
     }
 
@@ -276,6 +383,7 @@ Singleton {
                     root.gpuPerc = 0;
                     root.gpuTemp = 0;
                 }
+                root._pushGpu();
             }
         }
     }

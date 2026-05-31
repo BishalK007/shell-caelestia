@@ -38,7 +38,8 @@ ColumnLayout {
             closeTray();
 
         if (!ch) {
-            popouts.hasCurrent = false;
+            if (!popouts.openGuard)
+                popouts.hasCurrent = false;
             return;
         }
 
@@ -55,19 +56,12 @@ ColumnLayout {
             }
         } else if (id === "tray" && Config.bar.popouts.tray) {
             const tray = ch.item as Tray;
-            if (!Config.bar.tray.compact || (tray.expanded && !tray.expandIcon.contains(mapToItem(tray.expandIcon, tray.implicitWidth / 2, y)))) {
-                const index = Math.floor(((y - top - tray.padding * 2 + tray.spacing) / tray.layout.implicitHeight) * tray.items.count);
-                const trayItem = tray.items.itemAt(index);
-                if (trayItem) {
-                    popouts.currentName = `traymenu${index}`;
-                    popouts.currentCenter = Qt.binding(() => trayItem.mapToItem(root, 0, trayItem.implicitHeight / 2).y);
-                    popouts.hasCurrent = true;
-                } else {
-                    popouts.hasCurrent = false;
-                }
+            if (tray.count > 0) {
+                popouts.currentName = "systray";
+                popouts.currentCenter = Qt.binding(() => tray.mapToItem(root, 0, tray.implicitHeight / 2).y);
+                popouts.hasCurrent = true;
             } else {
                 popouts.hasCurrent = false;
-                tray.expanded = true;
             }
         } else if (id === "activeWindow" && Config.bar.popouts.activeWindow && Config.bar.activeWindow.showOnHover) {
             popouts.currentName = id.toLowerCase();
@@ -122,6 +116,16 @@ ColumnLayout {
                 roleValue: "logo"
                 delegate: WrappedLoader {
                     sourceComponent: OsIcon {}
+                }
+            }
+            DelegateChoice {
+                roleValue: "ephemera"
+                delegate: WrappedLoader {
+                    visible: !root.fullscreen
+                    sourceComponent: EphemeraButton {
+                        popouts: root.popouts
+                        bar: root
+                    }
                 }
             }
             DelegateChoice {

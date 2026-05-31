@@ -80,12 +80,21 @@ StyledRect {
             }
         }
         onClicked: event => {
-            if (!GlobalConfig.notifs.actionOnClick || event.button !== Qt.LeftButton)
+            if (event.button !== Qt.LeftButton)
                 return;
 
-            const actions = root.modelData.actions;
-            if (actions.length === 1)
-                actions[0].invoke();
+            // If configured for action-on-click and there's exactly one action, fire it.
+            if (GlobalConfig.notifs.actionOnClick) {
+                const actions = root.modelData.actions;
+                if (actions.length === 1) {
+                    actions[0].invoke();
+                    return;
+                }
+            }
+
+            // Otherwise a click opens the notification panel (and dismisses this popup).
+            Visibilities.getForActive().sidebar = true;
+            root.modelData.popup = false;
         }
 
         Item {
@@ -252,7 +261,7 @@ StyledRect {
                 font.family: appName.font.family
                 font.pointSize: appName.font.pointSize
                 elide: Text.ElideRight
-                elideWidth: expandBtn.x - time.width - timeSep.width - summary.x - root.Tokens.spacing.small * 3
+                elideWidth: closeBtn.x - time.width - timeSep.width - summary.x - root.Tokens.spacing.small * 3
             }
 
             StyledText {
@@ -303,7 +312,7 @@ StyledRect {
                 font.family: summary.font.family
                 font.pointSize: summary.font.pointSize
                 elide: Text.ElideRight
-                elideWidth: expandBtn.x - time.width - timeSep.width - summary.x - root.Tokens.spacing.small * 3
+                elideWidth: closeBtn.x - time.width - timeSep.width - summary.x - root.Tokens.spacing.small * 3
             }
 
             StyledText {
@@ -370,6 +379,33 @@ StyledRect {
 
                     animate: true
                     text: root.expanded ? "expand_less" : "expand_more"
+                    font.pointSize: Tokens.font.size.normal
+                }
+            }
+
+            // Quick-dismiss: removes the floating popup immediately (stays in the notification panel).
+            Item {
+                id: closeBtn
+
+                anchors.right: expandBtn.left
+                anchors.top: parent.top
+                anchors.rightMargin: Tokens.spacing.small
+
+                implicitWidth: closeIcon.height
+                implicitHeight: closeIcon.height
+
+                StateLayer {
+                    radius: Tokens.rounding.full
+                    color: root.modelData.urgency === NotificationUrgency.Critical ? Colours.palette.m3onSecondaryContainer : Colours.palette.m3onSurface
+                    onClicked: root.modelData.popup = false
+                }
+
+                MaterialIcon {
+                    id: closeIcon
+
+                    anchors.centerIn: parent
+
+                    text: "close"
                     font.pointSize: Tokens.font.size.normal
                 }
             }

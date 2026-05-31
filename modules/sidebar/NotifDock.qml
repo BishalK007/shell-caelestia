@@ -80,8 +80,9 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: title.bottom
-        anchors.bottom: parent.bottom
+        anchors.bottom: bottomBar.top
         anchors.topMargin: Tokens.spacing.smaller
+        anchors.bottomMargin: Tokens.spacing.smaller
 
         radius: Tokens.rounding.small
         color: "transparent"
@@ -174,42 +175,103 @@ Item {
         }
     }
 
-    Loader {
-        asynchronous: true
+    // Bottom bar: A (display mode) + B (sound) + clear-all on top, the notification-volume
+    // slider ("notification channel") underneath. The list is docked above this (see clipRect).
+    Column {
+        id: bottomBar
+
+        anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.margins: Tokens.padding.normal
+        spacing: Tokens.spacing.small
 
-        scale: root.notifCount > 0 ? 1 : 0.5
-        opacity: root.notifCount > 0 ? 1 : 0
-        active: opacity > 0
+        RowLayout {
+            width: parent.width
+            spacing: Tokens.spacing.small
 
-        sourceComponent: IconButton {
-            id: clearBtn
+            IconButton {
+                type: IconButton.Tonal
+                checked: Notifs.mode !== "default"
+                icon: Notifs.mode === "dnd" ? "do_not_disturb_on" : Notifs.mode === "peek" ? "notifications_paused" : "notifications_active"
+                radius: Tokens.rounding.normal
+                padding: Tokens.padding.normal
+                font.pointSize: Math.round(Tokens.font.size.large * 1.2)
+                onClicked: Notifs.cycleMode()
+            }
 
-            icon: "clear_all"
-            radius: Tokens.rounding.normal
-            padding: Tokens.padding.normal
-            font.pointSize: Math.round(Tokens.font.size.large * 1.2)
-            onClicked: clearTimer.start()
+            IconButton {
+                type: IconButton.Tonal
+                checked: Notifs.soundEnabled
+                icon: Notifs.soundEnabled ? "volume_up" : "volume_off"
+                radius: Tokens.rounding.normal
+                padding: Tokens.padding.normal
+                font.pointSize: Math.round(Tokens.font.size.large * 1.2)
+                onClicked: Notifs.toggleSound()
+            }
 
-            Elevation {
-                anchors.fill: parent
-                radius: parent.radius
-                z: -1
-                level: clearBtn.stateLayer.containsMouse ? 4 : 3
+            Item {
+                Layout.fillWidth: true
+            }
+
+            IconButton {
+                id: clearBtn
+
+                opacity: root.notifCount > 0 ? 1 : 0
+                visible: opacity > 0
+                icon: "clear_all"
+                radius: Tokens.rounding.normal
+                padding: Tokens.padding.normal
+                font.pointSize: Math.round(Tokens.font.size.large * 1.2)
+                onClicked: clearTimer.start()
+
+                Elevation {
+                    anchors.fill: parent
+                    radius: parent.radius
+                    z: -1
+                    level: clearBtn.stateLayer.containsMouse ? 4 : 3
+                }
+
+                Behavior on opacity {
+                    Anim {
+                        duration: Tokens.anim.durations.expressiveFastSpatial
+                    }
+                }
             }
         }
 
-        Behavior on scale {
-            Anim {
-                type: Anim.FastSpatial
-            }
-        }
+        // Notification volume — same control as the audio widget's Notification slider; both drive
+        // notification_sink's volume. The shell no longer overrides this, so it's yours to set.
+        RowLayout {
+            width: parent.width
+            spacing: Tokens.spacing.small
+            visible: VirtualSink.available
 
-        Behavior on opacity {
-            Anim {
-                duration: Tokens.anim.durations.expressiveFastSpatial
+            MaterialIcon {
+                Layout.alignment: Qt.AlignVCenter
+                text: VirtualSink.notificationMuted ? "notifications_off" : "notifications"
+                color: Colours.palette.m3onSurfaceVariant
+            }
+
+            StyledSlider {
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignVCenter
+                implicitHeight: Tokens.padding.normal * 3
+                from: 0
+                to: GlobalConfig.services.maxVolume
+                value: VirtualSink.notificationVolume
+                onMoved: VirtualSink.setNotificationVolume(value)
+
+                Behavior on value {
+                    Anim {}
+                }
+            }
+
+            StyledText {
+                Layout.alignment: Qt.AlignVCenter
+                text: `${Math.round(VirtualSink.notificationVolume * 100)}%`
+                color: Colours.palette.m3onSurfaceVariant
+                font.pointSize: Tokens.font.size.small
             }
         }
     }

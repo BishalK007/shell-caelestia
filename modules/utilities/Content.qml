@@ -22,6 +22,11 @@ Item {
         anchors.fill: parent
         spacing: Tokens.spacing.normal
 
+        DisplaySelect {
+            visibilities: root.visibilities
+            z: 2
+        }
+
         IdleInhibit {}
 
         Record {

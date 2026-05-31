@@ -9,6 +9,7 @@ import "modules/drawers"
 import "modules/background"
 import "modules/areapicker"
 import "modules/lock"
+import "modules/dictation"
 import Quickshell
 
 ShellRoot {
@@ -24,6 +25,8 @@ ShellRoot {
     ConfigToasts {}
     Shortcuts {}
     BatteryMonitor {}
+    AudioRouting {}
+    DictationWidget {}
     IdleMonitors {
         lock: lock
     }

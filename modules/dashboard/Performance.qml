@@ -94,6 +94,8 @@ Item {
                     usage: SystemUsage.cpuPerc
                     temperature: SystemUsage.cpuTemp
                     accentColor: Colours.palette.m3primary
+                    buffer: SystemUsage.cpuBuffer
+                    pointInterval: SystemUsage.cpuGraphInterval
                 }
 
                 HeroCard {
@@ -110,6 +112,8 @@ Item {
                     usage: SystemUsage.gpuPerc
                     temperature: SystemUsage.gpuTemp
                     accentColor: Colours.palette.m3secondary
+                    buffer: SystemUsage.gpuBuffer
+                    pointInterval: SystemUsage.gpuGraphInterval
                 }
             }
 
@@ -131,6 +135,8 @@ Item {
                         return `${usedFmt.value.toFixed(1)} / ${Math.floor(totalFmt.value)} ${totalFmt.unit}`;
                     }
                     accentColor: Colours.palette.m3tertiary
+                    buffer: SystemUsage.memBuffer
+                    pointInterval: SystemUsage.memGraphInterval
                     visible: Config.dashboard.performance.showMemory
                 }
 
@@ -328,6 +334,49 @@ Item {
         }
     }
 
+    // Inset time-series usage graph used as a card background. Inset by the card radius so the
+    // graph's square top corners (at 100%) stay clear of the card's rounded corners.
+    component UsageGraph: Item {
+        id: usageGraph
+
+        property CircularBuffer buffer: null
+        property color color: Colours.palette.m3primary
+        // How long one graph point spans (the scroll cadence) — the widget's graph interval
+        property int pointInterval: GlobalConfig.dashboard.resourceUpdateInterval
+
+        visible: buffer && buffer.count > 1
+
+        SparklineItem {
+            id: spark
+
+            anchors.fill: parent
+            line1: usageGraph.buffer
+            line1Color: usageGraph.color
+            line1FillAlpha: 0.18
+            maxValue: 1
+            historyLength: SystemUsage.historyLength
+            lineWidth: 2
+        }
+
+        Connections {
+            target: usageGraph.buffer
+
+            function onValuesChanged(): void {
+                slideAnim.restart();
+            }
+        }
+
+        NumberAnimation {
+            id: slideAnim
+
+            target: spark
+            property: "slideProgress"
+            from: 0
+            to: 1
+            duration: usageGraph.pointInterval
+        }
+    }
+
     component HeroCard: StyledClippingRect {
         id: heroCard
 
@@ -340,6 +389,8 @@ Item {
         property real usage: 0
         property real temperature: 0
         property color accentColor: Colours.palette.m3primary
+        property CircularBuffer buffer: null
+        property int pointInterval: GlobalConfig.dashboard.resourceUpdateInterval
         readonly property real maxTemp: 100
         readonly property real tempProgress: Math.min(1, Math.max(0, temperature / maxTemp))
         property real animatedUsage: 0
@@ -354,12 +405,12 @@ Item {
         onUsageChanged: animatedUsage = usage
         onTempProgressChanged: animatedTemp = tempProgress
 
-        StyledRect {
-            anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            implicitWidth: parent.width * heroCard.animatedUsage
-            color: Qt.alpha(heroCard.accentColor, 0.15)
+        UsageGraph {
+            anchors.fill: parent
+            anchors.margins: Tokens.rounding.large
+            buffer: heroCard.buffer
+            color: heroCard.accentColor
+            pointInterval: heroCard.pointInterval
         }
 
         CardHeader {
@@ -457,6 +508,8 @@ Item {
         property real percentage: 0
         property string subtitle
         property color accentColor: Colours.palette.m3primary
+        property CircularBuffer buffer: null
+        property int pointInterval: GlobalConfig.dashboard.resourceUpdateInterval
         readonly property real arcStartAngle: 0.75 * Math.PI
         readonly property real arcSweep: 1.5 * Math.PI
         property real animatedPercentage: 0
@@ -466,6 +519,14 @@ Item {
         clip: true
         Component.onCompleted: animatedPercentage = percentage
         onPercentageChanged: animatedPercentage = percentage
+
+        UsageGraph {
+            anchors.fill: parent
+            anchors.margins: Tokens.rounding.large
+            buffer: gaugeCard.buffer
+            color: gaugeCard.accentColor
+            pointInterval: gaugeCard.pointInterval
+        }
 
         ColumnLayout {
             anchors.fill: parent

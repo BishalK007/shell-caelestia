@@ -29,6 +29,7 @@
   ninja,
   pkg-config,
   caelestia-cli,
+  cliphist,
   debug ? false,
   withCli ? false,
   extraRuntimeDeps ? [],
@@ -45,6 +46,7 @@
       lm_sensors
       swappy
       wl-clipboard
+      cliphist
       libqalculate
       bash
       hyprland

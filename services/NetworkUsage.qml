@@ -155,8 +155,10 @@ Singleton {
     }
 
     Timer {
+        // Always-on: throughput is just a /proc/net/dev read, so we keep history continuous
+        // (and totals count from shell start) rather than only while the dashboard is open.
         interval: GlobalConfig.dashboard.resourceUpdateInterval
-        running: root.refCount > 0
+        running: true
         repeat: true
         triggeredOnStart: true
 

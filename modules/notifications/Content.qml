@@ -14,12 +14,16 @@ Item {
     required property Item osdPanel
     required property Item sessionPanel
     readonly property int padding: Tokens.padding.large
+    // In peek mode the popup shrinks to just the circular badge, so its background panel
+    // (notifsBg, sized to this container) doesn't show a full-width blank behind a small circle.
+    readonly property bool peek: Notifs.peek
+    readonly property real peekSize: TokenConfig.sizes.notifs.image
 
     anchors.top: parent.top
     anchors.bottom: parent.bottom
     anchors.right: parent.right
 
-    implicitWidth: Tokens.sizes.notifs.width + padding * 2
+    implicitWidth: (peek ? peekSize : Tokens.sizes.notifs.width) + padding * 2
     implicitHeight: {
         const count = list.count;
         if (count === 0)
@@ -131,7 +135,9 @@ Item {
 
         required property NotifData modelData
         required property int index
-        readonly property alias nonAnimHeight: notif.nonAnimHeight
+        readonly property bool peek: Notifs.peek
+        readonly property real peekSize: TokenConfig.sizes.notifs.image
+        readonly property real nonAnimHeight: peek ? peekSize : notif.nonAnimHeight
         property int idx
 
         onIndexChanged: {
@@ -139,8 +145,8 @@ Item {
                 idx = index;
         }
 
-        implicitWidth: notif.implicitWidth
-        implicitHeight: notif.implicitHeight + (idx === 0 ? 0 : Tokens.spacing.smaller)
+        implicitWidth: peek ? peekSize : notif.implicitWidth
+        implicitHeight: (peek ? peekSize : notif.implicitHeight) + (idx === 0 ? 0 : Tokens.spacing.smaller)
 
         ListView.onRemove: removeAnim.start()
 
@@ -182,6 +188,8 @@ Item {
         }
 
         ClippingRectangle {
+            visible: !wrapper.peek
+
             anchors.top: parent.top
             anchors.topMargin: wrapper.idx === 0 ? 0 : Tokens.spacing.smaller
 
@@ -193,6 +201,19 @@ Item {
             Notification {
                 id: notif
 
+                modelData: wrapper.modelData
+            }
+        }
+
+        // Peek mode: render only a small circular logo at the top-right instead of the full card.
+        Loader {
+            active: wrapper.peek
+
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.topMargin: wrapper.idx === 0 ? 0 : Tokens.spacing.smaller
+
+            sourceComponent: Peek {
                 modelData: wrapper.modelData
             }
         }

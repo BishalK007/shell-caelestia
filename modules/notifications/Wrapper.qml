@@ -1,5 +1,6 @@
 import QtQuick
 import qs.components
+import qs.services
 
 Item {
     id: root
@@ -11,7 +12,9 @@ Item {
 
     visible: height > 0
     anchors.topMargin: -5
-    implicitWidth: Math.max(sidebarPanel.width, content.implicitWidth)
+    // Normally match the sidebar width so popups align with it; in peek mode use the content's own
+    // (badge-sized) width so the background hugs the small circle instead of staying full-width.
+    implicitWidth: Notifs.peek ? content.implicitWidth : Math.max(sidebarPanel.width, content.implicitWidth)
     implicitHeight: content.implicitHeight
 
     Content {

@@ -105,6 +105,13 @@ Item {
         }
 
         Popout {
+            name: "systray"
+            sourceComponent: SysTray {
+                popouts: root.popouts
+            }
+        }
+
+        Popout {
             name: "battery"
             sourceComponent: Battery {}
         }
@@ -112,6 +119,13 @@ Item {
         Popout {
             name: "audio"
             sourceComponent: Audio {
+                popouts: root.popouts
+            }
+        }
+
+        Popout {
+            name: "ephemera"
+            sourceComponent: EphemeraChat {
                 popouts: root.popouts
             }
         }

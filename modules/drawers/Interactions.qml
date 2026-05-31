@@ -22,6 +22,15 @@ CustomMouseArea {
     property bool dashboardShortcutActive
     property bool osdShortcutActive
     property bool utilitiesShortcutActive
+    property bool sidebarShortcutActive
+
+    // Small hover strip at the top-right corner that opens the sidebar (notification panel). Tall
+    // enough to bridge down to the sidebar panel even when notification popups push it lower.
+    function inSidebarTrigger(x: real, y: real): bool {
+        const w = Config.border.rounding * 3 + Config.border.thickness;
+        const h = Config.border.rounding * 12;
+        return x > width - w && y > root.borderThickness && y < root.borderThickness + h;
+    }
 
     function withinPanelHeight(panel: Item, x: real, y: real): bool {
         const panelY = root.borderThickness + panel.y;
@@ -78,7 +87,10 @@ CustomMouseArea {
             if (!utilitiesShortcutActive)
                 visibilities.utilities = false;
 
-            if (!popouts.currentName.startsWith("traymenu") || ((popouts.current as StackView)?.depth ?? 0) <= 1) {
+            if (Config.sidebar.showOnHover && !sidebarShortcutActive)
+                visibilities.sidebar = false;
+
+            if ((!popouts.currentName.startsWith("traymenu") || ((popouts.current as StackView)?.depth ?? 0) <= 1) && popouts.currentName !== "ephemera") {
                 popouts.hasCurrent = false;
                 bar.closeTray();
             }
@@ -172,6 +184,19 @@ CustomMouseArea {
                 visibilities.sidebar = false;
         }
 
+        // Show sidebar (notification panel) on hover of the top-right corner; keep it open while
+        // hovering the open sidebar. Mirrors the dashboard hover pattern.
+        if (Config.sidebar.showOnHover) {
+            // Keep the sidebar open while hovering the sidebar OR the utilities panel below it —
+            // utilities is attached to the sidebar (shouldBeActive: visibilities.sidebar), so they
+            // act as one combined right-side panel and should stay shown together.
+            const hoverSidebar = inSidebarTrigger(x, y) || (visibilities.sidebar && (inRightPanel(panels.sidebar, x, y) || inBottomPanel(panels.utilities, x, y, true)));
+            if (!sidebarShortcutActive)
+                visibilities.sidebar = hoverSidebar;
+            else if (hoverSidebar)
+                sidebarShortcutActive = false;
+        }
+
         // Show launcher on hover, or show/hide on drag if hover is disabled
         if (Config.launcher.showOnHover) {
             if (!visibilities.launcher && inBottomPanel(panels.launcher, x, y))
@@ -216,7 +241,7 @@ CustomMouseArea {
         // Show popouts on hover
         if (x < bar.implicitWidth) {
             bar.checkPopout(y);
-        } else if ((!popouts.currentName.startsWith("traymenu") || ((popouts.current as StackView)?.depth ?? 0) <= 1) && !inLeftPanel(panels.popoutsWrapper, x, y)) {
+        } else if ((!popouts.currentName.startsWith("traymenu") || ((popouts.current as StackView)?.depth ?? 0) <= 1) && popouts.currentName !== "ephemera" && !inLeftPanel(panels.popoutsWrapper, x, y)) {
             popouts.hasCurrent = false;
             bar.closeTray();
         }
@@ -255,6 +280,20 @@ CustomMouseArea {
             } else {
                 // Dashboard hidden, clear shortcut flag
                 root.dashboardShortcutActive = false;
+            }
+        }
+
+        function onSidebarChanged() {
+            if (!Config.sidebar.showOnHover)
+                return;
+            if (root.visibilities.sidebar) {
+                // Opened (e.g. by keybind) while not hovering the trigger/panel -> keep it open
+                // until dismissed, rather than letting hover immediately close it.
+                const inArea = root.inSidebarTrigger(root.mouseX, root.mouseY) || root.inRightPanel(root.panels.sidebar, root.mouseX, root.mouseY) || root.inBottomPanel(root.panels.utilities, root.mouseX, root.mouseY, true);
+                if (!inArea)
+                    root.sidebarShortcutActive = true;
+            } else {
+                root.sidebarShortcutActive = false;
             }
         }
 

@@ -19,13 +19,15 @@ Item {
     required property int rounding
 
     readonly property bool showWallpapers: search.text.startsWith(`${GlobalConfig.launcher.actionPrefix}wallpaper `)
-    readonly property var currentList: showWallpapers ? wallpaperList.item : appList.item // Can be either ListView or PathView, so can't type properly
+    readonly property bool showClipboard: search.text.startsWith(Clipboard.prefix)
+    readonly property bool showBrowser: search.text.startsWith(Browsers.prefix)
+    readonly property var currentList: showClipboard ? clipboardList.item?.view : showBrowser ? browserList.item : showWallpapers ? wallpaperList.item : appList.item // ListView or PathView, so can't type properly
 
     anchors.horizontalCenter: parent.horizontalCenter
     anchors.bottom: parent.bottom
 
     clip: true
-    state: showWallpapers ? "wallpapers" : "apps"
+    state: showClipboard ? "clipboard" : showBrowser ? "browser" : showWallpapers ? "wallpapers" : "apps"
 
     states: [
         State {
@@ -49,6 +51,29 @@ Item {
                 root.implicitWidth: Math.max(root.Tokens.sizes.launcher.itemWidth * 1.2, wallpaperList.implicitWidth)
                 root.implicitHeight: root.Tokens.sizes.launcher.wallpaperHeight
                 wallpaperList.active: true
+            }
+        },
+        State {
+            name: "clipboard"
+
+            PropertyChanges {
+                root.implicitWidth: clipboardList.item?.implicitWidth ?? root.Tokens.sizes.launcher.itemWidth
+                root.implicitHeight: clipboardList.item?.implicitHeight ?? 0
+                clipboardList.active: true
+            }
+        },
+        State {
+            name: "browser"
+
+            PropertyChanges {
+                root.implicitWidth: root.Tokens.sizes.launcher.itemWidth
+                root.implicitHeight: Math.min(root.maxHeight, (browserList.item?.implicitHeight ?? 0) > 0 ? browserList.item.implicitHeight : empty.implicitHeight)
+                browserList.active: true
+            }
+
+            AnchorChanges {
+                anchors.left: root.parent.left
+                anchors.right: root.parent.right
             }
         }
     ]
@@ -104,6 +129,34 @@ Item {
         }
     }
 
+    Loader {
+        id: clipboardList
+
+        active: false
+
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        anchors.horizontalCenter: parent.horizontalCenter
+
+        sourceComponent: ClipboardList {
+            search: root.search
+            visibilities: root.visibilities
+        }
+    }
+
+    Loader {
+        id: browserList
+
+        active: false
+
+        anchors.fill: parent
+
+        sourceComponent: BrowserList {
+            search: root.search
+            visibilities: root.visibilities
+        }
+    }
+
     Row {
         id: empty
 
@@ -117,7 +170,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
 
         MaterialIcon {
-            text: root.state === "wallpapers" ? "wallpaper_slideshow" : "manage_search"
+            text: root.state === "clipboard" ? "content_paste" : root.state === "browser" ? "public" : root.state === "wallpapers" ? "wallpaper_slideshow" : "manage_search"
             color: Colours.palette.m3onSurfaceVariant
             font.pointSize: Tokens.font.size.extraLarge
 
@@ -128,14 +181,14 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
 
             StyledText {
-                text: root.state === "wallpapers" ? qsTr("No wallpapers found") : qsTr("No results")
+                text: root.state === "clipboard" ? qsTr("No clipboard history") : root.state === "browser" ? qsTr("No browsers found") : root.state === "wallpapers" ? qsTr("No wallpapers found") : qsTr("No results")
                 color: Colours.palette.m3onSurfaceVariant
                 font.pointSize: Tokens.font.size.larger
                 font.weight: 500
             }
 
             StyledText {
-                text: root.state === "wallpapers" && Wallpapers.list.length === 0 ? qsTr("Try putting some wallpapers in %1").arg(Paths.shortenHome(Paths.wallsdir)) : qsTr("Try searching for something else")
+                text: root.state === "clipboard" ? qsTr("Copy something first") : root.state === "wallpapers" && Wallpapers.list.length === 0 ? qsTr("Try putting some wallpapers in %1").arg(Paths.shortenHome(Paths.wallsdir)) : qsTr("Try searching for something else")
                 color: Colours.palette.m3onSurfaceVariant
                 font.pointSize: Tokens.font.size.normal
             }

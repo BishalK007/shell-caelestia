@@ -29,6 +29,24 @@ Item {
     property alias hasCurrent: popoutState.hasCurrent
     property real currentCenter
 
+    // Right after a click-opened popout (e.g. ephemera) opens, the open animation + pointer movement
+    // can race the hover/focus-grab close logic. While this guard is set, close-sites must not close.
+    property bool openGuard: false
+
+    function guardOpen(): void {
+        openGuard = true;
+        openGuardTimer.restart();
+    }
+
+    Timer {
+        id: openGuardTimer
+
+        interval: 500
+        onTriggered: root.openGuard = false
+    }
+
+    Component.onCompleted: Visibilities.loadPopouts(screen, this)
+
     property string detachedMode
     property string queuedMode
 
@@ -97,7 +115,7 @@ Item {
     }
 
     Binding {
-        when: root.isDetached || (root.hasCurrent && root.currentName === "wirelesspassword")
+        when: root.isDetached || (root.hasCurrent && (root.currentName === "wirelesspassword" || root.currentName === "ephemera"))
 
         target: QsWindow.window
         property: "WlrLayershell.keyboardFocus"

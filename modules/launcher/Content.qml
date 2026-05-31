@@ -17,6 +17,34 @@ Item {
     readonly property int padding: Tokens.padding.large
     readonly property int rounding: Tokens.rounding.large
 
+    // Ctrl+P: pin/unpin (favourite) the highlighted app. Favourites sort to the top + show a
+    // heart, and the change auto-saves to shell.json. Only applies to apps (not wallpaper/
+    // clipboard/action modes).
+    function togglePin(): void {
+        if (list.showWallpapers || list.showClipboard)
+            return;
+        if (list.showBrowser) {
+            const bid = list.currentList?.currentItem?.modelData?.id;
+            if (bid)
+                Browsers.toggleFav(bid);
+            return;
+        }
+        if (search.text.startsWith(GlobalConfig.launcher.actionPrefix))
+            return;
+
+        const id = list.currentList?.currentItem?.modelData?.id;
+        if (!id)
+            return;
+
+        const favs = GlobalConfig.launcher.favouriteApps ? [...GlobalConfig.launcher.favouriteApps] : [];
+        const idx = favs.indexOf(id);
+        if (idx === -1)
+            favs.push(id);
+        else
+            favs.splice(idx, 1);
+        GlobalConfig.launcher.favouriteApps = favs;
+    }
+
     implicitWidth: listWrapper.width + padding * 2
     implicitHeight: searchWrapper.height + listWrapper.height + padding * 2
 
@@ -78,7 +106,7 @@ Item {
             topPadding: Tokens.padding.larger
             bottomPadding: Tokens.padding.larger
 
-            placeholderText: qsTr("Type \"%1\" for commands").arg(GlobalConfig.launcher.actionPrefix)
+            placeholderText: qsTr("Type \"%1\" for Commands and \"%2\" for cliphistory").arg(GlobalConfig.launcher.actionPrefix).arg(Clipboard.prefix)
 
             onAccepted: {
                 const currentItem = list.currentList?.currentItem;
@@ -87,6 +115,12 @@ Item {
                         if (Colours.scheme === "dynamic" && currentItem.modelData.path !== Wallpapers.actualCurrent)
                             Wallpapers.previewColourLock = true;
                         Wallpapers.setWallpaper(currentItem.modelData.path);
+                        root.visibilities.launcher = false;
+                    } else if (text.startsWith(Clipboard.prefix)) {
+                        Clipboard.copy(currentItem.modelData);
+                        root.visibilities.launcher = false;
+                    } else if (list.showBrowser) {
+                        Browsers.launch(currentItem.modelData);
                         root.visibilities.launcher = false;
                     } else if (text.startsWith(GlobalConfig.launcher.actionPrefix)) {
                         if (text.startsWith(`${GlobalConfig.launcher.actionPrefix}calc `))
@@ -106,6 +140,12 @@ Item {
             Keys.onEscapePressed: root.visibilities.launcher = false
 
             Keys.onPressed: event => {
+                if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_P) {
+                    root.togglePin();
+                    event.accepted = true;
+                    return;
+                }
+
                 if (!GlobalConfig.launcher.vimKeybinds)
                     return;
 
@@ -126,12 +166,22 @@ Item {
                 }
             }
 
-            Component.onCompleted: forceActiveFocus()
+            Component.onCompleted: {
+                if (Visibilities.launcherQuery) {
+                    text = Visibilities.launcherQuery;
+                    Visibilities.launcherQuery = "";
+                }
+                forceActiveFocus();
+            }
 
             Connections {
                 function onLauncherChanged(): void {
-                    if (!root.visibilities.launcher)
+                    if (!root.visibilities.launcher) {
                         search.text = "";
+                    } else if (Visibilities.launcherQuery) {
+                        search.text = Visibilities.launcherQuery;
+                        Visibilities.launcherQuery = "";
+                    }
                 }
 
                 function onSessionChanged(): void {
@@ -140,6 +190,17 @@ Item {
                 }
 
                 target: root.visibilities
+            }
+
+            Connections {
+                function onLauncherQueryChanged(): void {
+                    if (Visibilities.launcherQuery && root.visibilities.launcher) {
+                        search.text = Visibilities.launcherQuery;
+                        Visibilities.launcherQuery = "";
+                    }
+                }
+
+                target: Visibilities
             }
         }
 

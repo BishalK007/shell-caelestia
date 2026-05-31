@@ -22,6 +22,37 @@ ColumnLayout {
     spacing: Tokens.spacing.small
     width: Tokens.sizes.bar.networkWidth
 
+    // VPN section (shown in both wireless/ethernet views when VPN profiles exist)
+    StyledText {
+        visible: Nmcli.vpnConnections.length > 0
+        Layout.preferredHeight: visible ? implicitHeight : 0
+        Layout.topMargin: visible ? Tokens.padding.normal : 0
+        Layout.rightMargin: Tokens.padding.small
+        text: qsTr("VPN")
+        font.weight: 500
+    }
+
+    Repeater {
+        model: ScriptModel {
+            values: Nmcli.vpnConnections
+        }
+
+        Toggle {
+            required property var modelData
+
+            Layout.fillWidth: true
+            Layout.rightMargin: Tokens.padding.small
+            label: modelData.name
+            checked: modelData.active
+            toggle.onToggled: {
+                if (checked)
+                    Nmcli.connectVpn(modelData.uuid);
+                else
+                    Nmcli.disconnectVpn(modelData.uuid);
+            }
+        }
+    }
+
     // Wireless section
     StyledText {
         visible: root.view === "wireless"

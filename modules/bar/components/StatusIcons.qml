@@ -4,6 +4,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Bluetooth
+import Quickshell.Services.SystemTray
 import Quickshell.Services.UPower
 import Caelestia.Config
 import qs.components
@@ -164,6 +165,18 @@ StyledRect {
             }
         }
 
+        // VPN icon — shown only while a VPN is connected; opens the network popout
+        WrappedLoader {
+            name: "network"
+            active: Nmcli.activeVpn !== null
+
+            sourceComponent: MaterialIcon {
+                animate: true
+                text: "vpn_lock"
+                color: root.colour
+            }
+        }
+
         // Bluetooth section
         WrappedLoader {
             Layout.preferredHeight: implicitHeight
@@ -257,6 +270,17 @@ StyledRect {
                 }
                 color: !UPower.onBattery || UPower.displayDevice.percentage > 0.2 ? root.colour : Colours.palette.m3error
                 fill: 1
+            }
+        }
+
+        // System tray — opens the grid popout (see popouts/SysTray.qml)
+        WrappedLoader {
+            name: "systray"
+            active: Config.bar.popouts.tray && SystemTray.items.values.filter(i => !GlobalConfig.bar.tray.hiddenIcons.includes(i.id)).length > 0
+
+            sourceComponent: MaterialIcon {
+                text: "widgets"
+                color: root.colour
             }
         }
     }

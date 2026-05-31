@@ -98,6 +98,33 @@ Scope {
     // qmllint disable unresolved-type
     CustomShortcut {
         // qmllint enable unresolved-type
+        name: "ephemera"
+        description: "Toggle Ephemera AI chat"
+        onPressed: {
+            const p = Visibilities.getPopoutsForActive();
+            if (!p)
+                return;
+            if (p.currentName === "ephemera" && p.hasCurrent) {
+                p.hasCurrent = false;
+            } else {
+                p.currentName = "ephemera";
+                p.hasCurrent = true;
+                p.guardOpen();
+            }
+        }
+    }
+
+    // qmllint disable unresolved-type
+    CustomShortcut {
+        // qmllint enable unresolved-type
+        name: "dictation"
+        description: "Toggle OpenWhispr dictation"
+        onPressed: Dictation.toggle()
+    }
+
+    // qmllint disable unresolved-type
+    CustomShortcut {
+        // qmllint enable unresolved-type
         name: "utilities"
         description: "Toggle utilities"
         onPressed: {
@@ -105,6 +132,20 @@ Scope {
                 return;
             const visibilities = Visibilities.getForActive();
             visibilities.utilities = !visibilities.utilities;
+        }
+    }
+
+    // qmllint disable unresolved-type
+    CustomShortcut {
+        // qmllint enable unresolved-type
+        name: "browserLauncher"
+        description: "Open the launcher in browser mode"
+        onPressed: {
+            if (root.hasFullscreen)
+                return;
+            const visibilities = Visibilities.getForActive();
+            Visibilities.launcherQuery = Browsers.prefix;
+            visibilities.launcher = true;
         }
     }
 

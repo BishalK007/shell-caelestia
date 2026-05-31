@@ -15,6 +15,12 @@ class DashboardPerformance : public ConfigObject {
     CONFIG_PROPERTY(bool, showStorage, true)
     CONFIG_PROPERTY(bool, showNetwork, true)
 
+    // Per-graph point interval (ms). 0 = same as resourceUpdateInterval. Measurements taken each
+    // resourceUpdateInterval are averaged over this window into a single graph point.
+    CONFIG_PROPERTY(int, cpuGraphInterval, 0)
+    CONFIG_PROPERTY(int, gpuGraphInterval, 0)
+    CONFIG_PROPERTY(int, memGraphInterval, 0)
+
 public:
     explicit DashboardPerformance(QObject* parent = nullptr)
         : ConfigObject(parent) {}
@@ -31,7 +37,7 @@ class DashboardConfig : public ConfigObject {
     CONFIG_PROPERTY(bool, showPerformance, true)
     CONFIG_PROPERTY(bool, showWeather, true)
     CONFIG_GLOBAL_PROPERTY(int, mediaUpdateInterval, 500)
-    CONFIG_GLOBAL_PROPERTY(int, resourceUpdateInterval, 1000)
+    CONFIG_GLOBAL_PROPERTY(int, resourceUpdateInterval, 2000)
     CONFIG_PROPERTY(int, dragThreshold, 50)
     CONFIG_SUBOBJECT(DashboardPerformance, performance)
 

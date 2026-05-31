@@ -236,6 +236,32 @@ StyledRect {
                         }
                     }
                 }
+
+                // Dismiss only this group's notifications (distinct from clear-all).
+                StyledRect {
+                    implicitWidth: dismissIcon.implicitWidth + Tokens.padding.smaller * 2
+                    implicitHeight: dismissIcon.implicitHeight + Tokens.padding.small
+
+                    color: root.urgency === NotificationUrgency.Critical ? Colours.palette.m3error : Colours.layer(Colours.palette.m3surfaceContainerHigh, 3)
+                    radius: Tokens.rounding.full
+
+                    StateLayer {
+                        color: root.urgency === NotificationUrgency.Critical ? Colours.palette.m3onError : Colours.palette.m3onSurface
+                        onClicked: {
+                            for (const n of root.activeNotifs.slice())
+                                n.close();
+                        }
+                    }
+
+                    MaterialIcon {
+                        id: dismissIcon
+
+                        anchors.centerIn: parent
+                        text: "close"
+                        color: root.urgency === NotificationUrgency.Critical ? Colours.palette.m3onError : Colours.palette.m3onSurface
+                        font.pointSize: Tokens.font.size.small
+                    }
+                }
             }
 
             NotifGroupList {

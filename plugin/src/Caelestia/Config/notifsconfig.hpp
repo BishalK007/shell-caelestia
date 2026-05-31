@@ -19,6 +19,8 @@ class NotifsConfig : public ConfigObject {
     CONFIG_GLOBAL_PROPERTY(bool, actionOnClick, false)
     CONFIG_PROPERTY(int, groupPreviewNum, 3)
     CONFIG_PROPERTY(bool, openExpanded, false)
+    // Notification sound played into notification_sink. Empty = bundled assets/sounds/notification.wav.
+    CONFIG_PROPERTY(QString, soundPath, QStringLiteral(""))
 
 public:
     explicit NotifsConfig(QObject* parent = nullptr)

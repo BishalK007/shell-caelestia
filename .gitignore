@@ -4,3 +4,8 @@
 build/
 .cache/
 logs
+
+# Personal config + media — kept in the dotfiles repo, never committed to the shell fork
+/shell.json
+/assets/wallpapers/
+/assets/bishal.JPG

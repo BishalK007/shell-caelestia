@@ -21,6 +21,10 @@ Singleton {
     property list<string> savedConnections: []
     property list<string> savedConnectionSsids: []
 
+    // VPN / WireGuard connection profiles known to NetworkManager
+    property list<var> vpnConnections: []
+    readonly property var activeVpn: vpnConnections.find(v => v.active) ?? null
+
     property var wifiConnectionQueue: []
     property int currentSsidQueryIndex: 0
     property var pendingConnection: null
@@ -1024,6 +1028,7 @@ Singleton {
     }
 
     function refreshOnConnectionChange(): void {
+        loadVpnConnections(() => {});
         getNetworks(networks => {
             const newActive = root.active;
 
@@ -1063,10 +1068,61 @@ Singleton {
         });
     }
 
+    function loadVpnConnections(callback: var): void {
+        executeCommand(["-t", "-f", "NAME,UUID,TYPE,ACTIVE", root.nmcliCommandConnection, "show"], result => {
+            if (!result.success) {
+                root.vpnConnections = [];
+                if (callback)
+                    callback([]);
+                return;
+            }
+
+            const vpns = [];
+            for (const line of result.output.trim().split("\n")) {
+                if (!line)
+                    continue;
+                // Fields from the end (uuid/type/active have no ":"); name may contain escaped "\:"
+                const parts = line.split(":");
+                if (parts.length < 4)
+                    continue;
+                const active = parts[parts.length - 1] === "yes";
+                const type = parts[parts.length - 2];
+                const uuid = parts[parts.length - 3];
+                const name = parts.slice(0, parts.length - 3).join(":").replace(/\\:/g, ":");
+                if (type === "vpn" || type === "wireguard")
+                    vpns.push({
+                        name,
+                        uuid,
+                        active
+                    });
+            }
+            root.vpnConnections = vpns;
+            if (callback)
+                callback(vpns);
+        });
+    }
+
+    function connectVpn(uuid: string, callback: var): void {
+        executeCommand([root.nmcliCommandConnection, "up", uuid], result => {
+            Qt.callLater(() => loadVpnConnections(() => {}), 500);
+            if (callback)
+                callback(result);
+        });
+    }
+
+    function disconnectVpn(uuid: string, callback: var): void {
+        executeCommand([root.nmcliCommandConnection, "down", uuid], result => {
+            Qt.callLater(() => loadVpnConnections(() => {}), 500);
+            if (callback)
+                callback(result);
+        });
+    }
+
     Component.onCompleted: {
         getWifiStatus(() => {});
         getNetworks(() => {});
         loadSavedConnections(() => {});
+        loadVpnConnections(() => {});
         getEthernetInterfaces(() => {});
 
         Qt.callLater(() => {

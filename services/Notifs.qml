@@ -17,9 +17,51 @@ Singleton {
     property list<NotifData> list: []
     readonly property list<NotifData> notClosed: list.filter(n => !n.closed)
     readonly property list<NotifData> popups: list.filter(n => n.popup)
-    property alias dnd: props.dnd
+
+    // Display mode (button A): "default" full cards, "peek" small circle only, "dnd" hidden
+    // (no popups, history still accrues). Persisted in props.
+    readonly property string mode: props.mode
+    readonly property bool dnd: props.mode === "dnd"
+    readonly property bool peek: props.mode === "peek"
+    // Notification sound on/off (button B) — fully independent of the display mode.
+    readonly property alias soundEnabled: props.soundEnabled
+    readonly property string soundFile: GlobalConfig.notifs.soundPath || `${Quickshell.shellDir}/assets/sounds/notification.wav`
 
     property bool loaded
+
+    function cycleMode(): void {
+        props.mode = props.mode === "default" ? "peek" : props.mode === "peek" ? "dnd" : "default";
+    }
+
+    function setMode(m: string): void {
+        props.mode = m;
+    }
+
+    function toggleDnd(): void {
+        props.mode = props.mode === "dnd" ? "default" : "dnd";
+    }
+
+    function toggleSound(): void {
+        props.soundEnabled = !props.soundEnabled;
+    }
+
+    // Play the notification sound into notification_sink (linked to every output, scaled by the
+    // Notification volume slider). Cooldown-debounced so bursts don't stack; falls back to the
+    // default sink if the virtual sink isn't present.
+    function playSound(): void {
+        if (!props.soundEnabled || soundCooldown.running)
+            return;
+        // Stay silent while dictating — a notification chime would be picked up by the mic and
+        // corrupt the transcription.
+        if (Dictation.active)
+            return;
+        const args = ["pw-play"];
+        if (VirtualSink.notificationSink)
+            args.push("--target", "notification_sink");
+        args.push(root.soundFile);
+        Quickshell.execDetached(args);
+        soundCooldown.restart();
+    }
 
     function hasFullscreen(): bool {
         for (const monitor of Hypr.monitors.values) {
@@ -30,21 +72,30 @@ Singleton {
     }
 
     function shouldShowPopup(): bool {
-        if (props.dnd || [...Visibilities.screens.values()].some(v => v.sidebar))
+        // Only DND fully suppresses popups; peek still shows them (rendered small elsewhere).
+        if (props.mode === "dnd" || [...Visibilities.screens.values()].some(v => v.sidebar))
             return false;
         if (GlobalConfig.notifs.fullscreen === "off" && hasFullscreen())
             return false;
         return true;
     }
 
-    onDndChanged: {
+    onModeChanged: {
         if (!GlobalConfig.utilities.toasts.dndChanged)
             return;
 
-        if (dnd)
-            Toaster.toast(qsTr("Do not disturb enabled"), qsTr("Popup notifications are now disabled"), "do_not_disturb_on");
+        if (mode === "dnd")
+            Toaster.toast(qsTr("Do not disturb"), qsTr("Popup notifications are hidden"), "do_not_disturb_on");
+        else if (mode === "peek")
+            Toaster.toast(qsTr("Peek mode"), qsTr("Notifications show as a small badge"), "notifications_paused");
         else
-            Toaster.toast(qsTr("Do not disturb disabled"), qsTr("Popup notifications are now enabled"), "do_not_disturb_off");
+            Toaster.toast(qsTr("Notifications shown"), qsTr("Popup notifications are enabled"), "do_not_disturb_off");
+    }
+
+    Timer {
+        id: soundCooldown
+
+        interval: 300
     }
 
     onListChanged: {
@@ -75,7 +126,8 @@ Singleton {
     PersistentProperties {
         id: props
 
-        property bool dnd
+        property string mode: "default"
+        property bool soundEnabled: true
 
         reloadableId: "notifs"
     }
@@ -99,6 +151,7 @@ Singleton {
                 notification: notif
             });
             root.list = [comp, ...root.list];
+            root.playSound();
         }
     }
 
@@ -140,19 +193,35 @@ Singleton {
         }
 
         function isDndEnabled(): bool {
-            return props.dnd;
+            return props.mode === "dnd";
         }
 
         function toggleDnd(): void {
-            props.dnd = !props.dnd;
+            root.toggleDnd();
         }
 
         function enableDnd(): void {
-            props.dnd = true;
+            props.mode = "dnd";
         }
 
         function disableDnd(): void {
-            props.dnd = false;
+            props.mode = "default";
+        }
+
+        function getMode(): string {
+            return props.mode;
+        }
+
+        function setMode(m: string): void {
+            root.setMode(m);
+        }
+
+        function cycleMode(): void {
+            root.cycleMode();
+        }
+
+        function toggleSound(): void {
+            root.toggleSound();
         }
 
         target: "notifs"
