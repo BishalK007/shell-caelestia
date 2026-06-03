@@ -72,7 +72,7 @@ ColumnLayout {
 
     function handleWheel(y: real, angleDelta: point): void {
         const ch = childAt(width / 2, y) as WrappedLoader;
-        if (ch?.id === "workspaces" && Config.bar.scrollActions.workspaces) {
+        if ((ch?.id === "workspaces" || ch?.id === "workspaceArrows") && Config.bar.scrollActions.workspaces) {
             // Workspace scroll
             const mon = (GlobalConfig.bar.workspaces.perMonitorWorkspaces ? Hypr.monitorFor(screen) : Hypr.focusedMonitor);
             const specialWs = mon?.lastIpcObject.specialWorkspace.name;
@@ -134,6 +134,15 @@ ColumnLayout {
                     sourceComponent: Workspaces {
                         screen: root.screen
                         fullscreen: root.fullscreen
+                    }
+                }
+            }
+            DelegateChoice {
+                roleValue: "workspaceArrows"
+                delegate: WrappedLoader {
+                    visible: !root.fullscreen
+                    sourceComponent: WorkspaceArrows {
+                        screen: root.screen
                     }
                 }
             }

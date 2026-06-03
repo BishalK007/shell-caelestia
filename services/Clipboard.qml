@@ -31,6 +31,12 @@ Singleton {
             Quickshell.execDetached(["sh", "-c", `cliphist decode ${entry.id} | wl-copy`]);
     }
 
+    // Copy arbitrary text to the Wayland clipboard (passed as argv, so no shell quoting issues).
+    function copyText(text: string): void {
+        if (text.length > 0)
+            Quickshell.execDetached(["wl-copy", "--", text]);
+    }
+
     // Remove an entry from history
     function remove(entry: var): void {
         if (entry && entry.id) {

@@ -114,13 +114,9 @@ Item {
         onCleared: root.close()
     }
 
-    Binding {
-        when: root.isDetached || (root.hasCurrent && (root.currentName === "wirelesspassword" || root.currentName === "ephemera"))
-
-        target: QsWindow.window
-        property: "WlrLayershell.keyboardFocus"
-        value: WlrKeyboardFocus.OnDemand
-    }
+    // NOTE: keyboard focus for this window (incl. ephemera / wirelesspassword / detached) is owned
+    // solely by ContentWindow.qml's WlrLayershell.keyboardFocus. Binding it here too made two owners
+    // fight over the same property, which is what caused the intermittent focus loss.
 
     Comp {
         id: content

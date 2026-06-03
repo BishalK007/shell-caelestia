@@ -145,6 +145,9 @@ MouseArea {
                             color: item.active ? Colours.palette.m3onTertiaryContainer : Colours.palette.m3onSurface
                             disabled: !root.expanded
                             onClicked: {
+                                // modelData can be transiently null while a dynamic item list rebuilds.
+                                if (!item.modelData)
+                                    return;
                                 root.itemSelected(item.modelData);
                                 root.active = item.modelData;
                                 item.modelData.clicked();
@@ -161,25 +164,25 @@ MouseArea {
 
                             MaterialIcon {
                                 Layout.alignment: Qt.AlignVCenter
-                                text: item.modelData.icon
+                                text: item.modelData?.icon ?? ""
                                 color: item.active ? Colours.palette.m3onTertiaryContainer : Colours.palette.m3onSurfaceVariant
                             }
 
                             StyledText {
                                 Layout.alignment: Qt.AlignVCenter
                                 Layout.fillWidth: true
-                                text: item.modelData.text
+                                text: item.modelData?.text ?? ""
                                 color: item.active ? Colours.palette.m3onTertiaryContainer : Colours.palette.m3onSurface
                             }
 
                             Loader {
                                 asynchronous: true
                                 Layout.alignment: Qt.AlignVCenter
-                                active: item.modelData.trailingIcon.length > 0
+                                active: (item.modelData?.trailingIcon?.length ?? 0) > 0
                                 visible: active
 
                                 sourceComponent: MaterialIcon {
-                                    text: item.modelData.trailingIcon
+                                    text: item.modelData?.trailingIcon ?? ""
                                     color: item.active ? Colours.palette.m3onTertiaryContainer : Colours.palette.m3onSurfaceVariant
                                 }
                             }

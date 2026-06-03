@@ -117,8 +117,16 @@ Item {
             spacing: Tokens.spacing.normal
             model: Ephemera.messages
 
-            onContentHeightChanged: positionViewAtEnd()
-            onCountChanged: positionViewAtEnd()
+            // Stick to the bottom only while the user is already there, so streaming tokens don't
+            // yank the view down when they've scrolled up to read. A new message re-sticks + jumps.
+            property bool stickToBottom: true
+            onCountChanged: {
+                stickToBottom = true;
+                Qt.callLater(positionViewAtEnd);
+            }
+            onContentHeightChanged: if (stickToBottom)
+                positionViewAtEnd()
+            onMovementEnded: stickToBottom = atYEnd
 
             delegate: Item {
                 id: msg
@@ -203,6 +211,29 @@ Item {
                             text: qsTr("Thinking…")
                             color: Colours.palette.m3onSurfaceVariant
                             font.pointSize: Tokens.font.size.small
+                        }
+
+                        // Copy the whole message (raw markdown — text + code together), since a mouse
+                        // selection can't span the separate text/code TextEdits within a message.
+                        RowLayout {
+                            Layout.fillWidth: true
+                            visible: msg.content.length > 0 && !msg.streaming && !msg.error
+                            spacing: 0
+
+                            Item {
+                                Layout.fillWidth: true
+                                visible: msg.isUser
+                            }
+
+                            CopyButton {
+                                textToCopy: msg.content
+                                iconSize: Tokens.font.size.small
+                            }
+
+                            Item {
+                                Layout.fillWidth: true
+                                visible: !msg.isUser
+                            }
                         }
                     }
                 }

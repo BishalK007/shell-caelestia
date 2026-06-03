@@ -2,16 +2,19 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import Quickshell
+import Caelestia.Config
 import qs.components
 import qs.components.controls
 import qs.services
 import "../../services/ephemera/Markdown.js" as Markdown
 
-// Renders a chat message. While streaming (or on errors) it shows ONE rich-text view, re-rendered
-// in place with any unterminated code fence auto-closed — avoiding the flicker/overlap of
-// re-segmenting incomplete markdown every token. Once finalized it splits into selectable markdown
-// text + monospace code boxes (with a copy button). Delegates bind modelData directly (a Loader +
-// seg indirection left the code box blank), and it's a Column so child implicitHeights are honoured.
+// Renders a chat message as a vertical stack of markdown-text + code-block segments. The SAME
+// renderer is used while streaming and after finalizing — incomplete code fences are auto-closed so
+// a code block shows as soon as it opens, and nothing re-flows or swaps when the message completes.
+//
+// Segments are diffed into a ListModel in place (changed roles updated, new ones appended, extras
+// trimmed) so a growing message never destroys/recreates delegates — no churn, no transient null
+// modelData, no leaks. Errors bypass markdown and show the raw text escaped.
 Column {
     id: root
 
@@ -29,12 +32,15 @@ Column {
 
     spacing: Tokens.spacing.small
 
+    // Balance an odd trailing code fence so a mid-stream ``` renders as a block immediately.
     function autoClose(text: string): string {
         const fences = (text.match(/```/g) || []).length;
         return fences % 2 === 1 ? text + "\n```" : text;
     }
 
-    function segments(text: string): var {
+    // Pure: split markdown into [{ kind: "text"|"code", body, lang }]. Always emits a leading text
+    // segment (possibly empty — the delegate hides empties) so indexing stays stable across rebuilds.
+    function computeSegments(text: string): var {
         const out = [];
         const lines = (text || "").split("\n");
         let inCode = false;
@@ -44,13 +50,20 @@ Column {
             const line = lines[i];
             if (/^\s*```/.test(line)) {
                 if (!inCode) {
-                    if (buf.length > 0)
-                        out.push({ type: "text", text: buf.join("\n"), lang: "" });
+                    out.push({
+                        kind: "text",
+                        body: buf.join("\n"),
+                        lang: ""
+                    });
                     buf = [];
                     inCode = true;
                     lang = line.replace(/^\s*```/, "").trim();
                 } else {
-                    out.push({ type: "code", text: buf.join("\n"), lang: lang });
+                    out.push({
+                        kind: "code",
+                        body: buf.join("\n"),
+                        lang: lang
+                    });
                     buf = [];
                     inCode = false;
                     lang = "";
@@ -59,16 +72,44 @@ Column {
                 buf.push(line);
             }
         }
-        if (inCode)
-            out.push({ type: "code", text: buf.join("\n"), lang: lang });
-        else if (buf.length > 0)
-            out.push({ type: "text", text: buf.join("\n"), lang: "" });
+        out.push({
+            kind: inCode ? "code" : "text",
+            body: buf.join("\n"),
+            lang: inCode ? lang : ""
+        });
         return out;
     }
 
-    // Streaming / error: single in-place rich-text view (incomplete fences auto-closed).
+    // Diff computed segments into segModel in place — update changed roles, append new, trim extras.
+    function rebuild(): void {
+        const segs = computeSegments(autoClose(content));
+        const n = segs.length;
+        for (let i = 0; i < n; i++) {
+            const s = segs[i];
+            if (i < segModel.count) {
+                const cur = segModel.get(i);
+                if (cur.kind !== s.kind || cur.body !== s.body || cur.lang !== s.lang)
+                    segModel.set(i, s);
+            } else {
+                segModel.append(s);
+            }
+        }
+        while (segModel.count > n)
+            segModel.remove(segModel.count - 1);
+    }
+
+    onContentChanged: if (!isError)
+        rebuild()
+    Component.onCompleted: if (!isError)
+        rebuild()
+
+    ListModel {
+        id: segModel
+    }
+
+    // Error: raw message as escaped text, no markdown.
     TextEdit {
-        visible: root.streaming || root.isError
+        visible: root.isError
         width: root.width
         readOnly: true
         selectByMouse: true
@@ -79,22 +120,25 @@ Column {
         selectedTextColor: Colours.palette.m3onPrimary
         font.family: Tokens.font.family.sans
         font.pointSize: Tokens.font.size.normal
-        text: root.isError ? Markdown.escapeHtml(root.content) : Markdown.markdownToHtml(root.autoClose(root.content), root.mdColours)
+        text: root.isError ? Markdown.escapeHtml(root.content) : ""
     }
 
-    // Finalized: selectable markdown + code boxes with copy buttons.
     Repeater {
-        model: (root.streaming || root.isError) ? [] : root.segments(root.content)
+        model: root.isError ? null : segModel
 
         delegate: Item {
             id: seg
 
-            required property var modelData
-            readonly property bool isCode: modelData.type === "code"
-            property bool copied: false
+            required property string kind
+            required property string body
+            required property string lang
+            readonly property bool isCode: kind === "code"
 
             width: root.width
             implicitHeight: isCode ? codeView.implicitHeight : textView.implicitHeight
+            height: implicitHeight
+            // Hide empty text segments (e.g. the leading one before a code block) so they take no space.
+            visible: isCode || body.length > 0
 
             TextEdit {
                 id: textView
@@ -110,7 +154,7 @@ Column {
                 selectedTextColor: Colours.palette.m3onPrimary
                 font.family: Tokens.font.family.sans
                 font.pointSize: Tokens.font.size.normal
-                text: seg.isCode ? "" : Markdown.markdownToHtml(seg.modelData.text, root.mdColours)
+                text: seg.isCode ? "" : Markdown.markdownToHtml(seg.body, root.mdColours)
             }
 
             StyledRect {
@@ -118,46 +162,49 @@ Column {
 
                 visible: seg.isCode
                 width: parent.width
-                implicitHeight: codeCol.implicitHeight + Tokens.padding.small * 2
-                radius: Tokens.rounding.small
+                // A Rectangle does NOT auto-size from implicitHeight (unlike TextEdit), so without
+                // this the whole code card collapses to 0 height and renders invisible.
+                implicitHeight: codeCol.implicitHeight + Tokens.padding.normal * 2
+                height: implicitHeight
+                radius: Tokens.rounding.normal
                 color: Colours.palette.m3surfaceContainerHighest
+
+                // Outline so the block always reads as a distinct code card, whatever the bubble bg.
+                border.width: 1
+                border.color: Colours.palette.m3outlineVariant
 
                 Column {
                     id: codeCol
 
-                    x: Tokens.padding.small
-                    y: Tokens.padding.small
-                    width: parent.width - Tokens.padding.small * 2
-                    spacing: Tokens.spacing.smaller
+                    x: Tokens.padding.normal
+                    y: Tokens.padding.normal
+                    width: parent.width - Tokens.padding.normal * 2
+                    spacing: Tokens.spacing.small
 
+                    // Header: language label (left) + per-block copy button (top-right).
                     Item {
                         width: parent.width
+                        // Plain Item needs an explicit height inside the Column (no auto-size).
                         implicitHeight: Math.max(langLabel.implicitHeight, copyBtn.implicitHeight)
+                        height: implicitHeight
 
                         StyledText {
                             id: langLabel
 
                             anchors.left: parent.left
                             anchors.verticalCenter: parent.verticalCenter
-                            text: seg.modelData.lang || "code"
+                            text: seg.lang || "code"
                             color: Colours.palette.m3onSurfaceVariant
                             font.pointSize: Tokens.font.size.small
                             font.family: Tokens.font.family.mono
                         }
 
-                        IconButton {
+                        CopyButton {
                             id: copyBtn
 
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
-                            type: IconButton.Text
-                            icon: seg.copied ? "check" : "content_copy"
-                            font.pointSize: Tokens.font.size.normal
-                            onClicked: {
-                                Quickshell.execDetached(["wl-copy", "--", seg.modelData.text]);
-                                seg.copied = true;
-                                copyTimer.restart();
-                            }
+                            textToCopy: seg.body
                         }
                     }
 
@@ -167,20 +214,13 @@ Column {
                         selectByMouse: true
                         textFormat: TextEdit.PlainText
                         wrapMode: TextEdit.WrapAtWordBoundaryOrAnywhere
-                        text: seg.modelData.text
+                        text: seg.body
                         color: Colours.palette.m3onSurface
                         selectionColor: Colours.palette.m3primary
                         selectedTextColor: Colours.palette.m3onPrimary
                         font.family: Tokens.font.family.mono
                         font.pointSize: Tokens.font.size.small
                     }
-                }
-
-                Timer {
-                    id: copyTimer
-
-                    interval: 1500
-                    onTriggered: seg.copied = false
                 }
             }
         }

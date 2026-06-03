@@ -63,7 +63,10 @@ StyledWindow {
     name: "drawers"
     WlrLayershell.exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: fsTransitionProg > 0 && contentItem.Config.general.showOverFullscreen ? WlrLayer.Overlay : WlrLayer.Top
-    WlrLayershell.keyboardFocus: visibilities.launcher || visibilities.session || panels.dashboard.needsKeyboard || panels.popouts.currentName === "ephemera" ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+    // Single owner of this window's keyboard focus. The bar popouts live in THIS window, so their
+    // keyboard needs (ephemera, wireless-password, detached control-centre) are folded in here —
+    // the popouts Wrapper must NOT also bind this property, or the two fight and focus flickers.
+    WlrLayershell.keyboardFocus: visibilities.launcher || visibilities.session || panels.dashboard.needsKeyboard || panels.popouts.isDetached || panels.popouts.currentName === "ephemera" || panels.popouts.currentName === "wirelesspassword" ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
     mask: hasFullscreen ? emptyRegion : regions
 

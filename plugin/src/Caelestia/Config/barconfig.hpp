@@ -140,7 +140,8 @@ class BarConfig : public ConfigObject {
     CONFIG_PROPERTY(QVariantList, entries,
         {
             vmap({ { u"id"_s, u"logo"_s }, { u"enabled"_s, true } }),
-            vmap({ { u"id"_s, u"workspaces"_s }, { u"enabled"_s, true } }),
+            // Compact fixed-size vertical workspace switcher (does not expand like the native one)
+            vmap({ { u"id"_s, u"workspaceArrows"_s }, { u"enabled"_s, true } }),
             vmap({ { u"id"_s, u"spacer"_s }, { u"enabled"_s, true } }),
             vmap({ { u"id"_s, u"activeWindow"_s }, { u"enabled"_s, true } }),
             vmap({ { u"id"_s, u"spacer"_s }, { u"enabled"_s, true } }),

@@ -102,6 +102,107 @@ Singleton {
         applyHyprColours();
         applyKittyColours();
         applyShellColours();
+        applyPapirusFolders();
+        applyThunarExtra();
+    }
+
+    // Toolbar + menubar rules missing from the CLI's thunar.css template (Thunar looks unstyled there
+    // without them). The CLI fully rewrites ~/.config/gtk-3.0/thunar.css on every `caelestia scheme
+    // set`, so we re-append a MARKED block carrying the live palette after each change. applyExternal-
+    // Colours() runs from load(), which only fires once the CLI has written the scheme file (and thus
+    // thunar.css), so we append after — never before. The sed strips any prior block first, so it's
+    // idempotent across re-runs. Colours map the same way the template does: $primary→m3primary (the
+    // #9ecedb accent), $surface→m3surface (the #0a0f10 background). Thunar is GTK3, so only gtk-3.0
+    // matters; thunar.css is @imported by gtk-3.0/gtk.css. CSS only applies at Thunar launch (GTK3 on
+    // Wayland won't hot-reload user CSS), which is why a brief CLI-wrote-but-not-yet-appended window
+    // is harmless — the block is present by the time a new window opens.
+    function applyThunarExtra(): void {
+        const primary = `#${toHex(current.m3primary)}`;
+        const surface = `#${toHex(current.m3surface)}`;
+        const block = [
+            "/* caelestia-shell:thunar-extra BEGIN (managed by Colours.qml — toolbar/menubar) */",
+            `.thunar toolbar { background-color: alpha(${primary}, 0.08); }`,
+            `.thunar toolbar toolbutton button:hover { background: alpha(${primary}, 0.15); border-radius: 100%; }`,
+            `.thunar toolbar toolitem button, .thunar toolbar toolitem entry { background: ${surface}; }`,
+            `.thunar menubar { background: ${surface}; }`,
+            `.thunar menubar menuitem menu { background: ${surface}; }`,
+            `.thunar menubar menuitem menu menuitem:hover { background: alpha(${primary}, 0.15); }`,
+            "/* caelestia-shell:thunar-extra END */"
+        ].join("\n");
+        // Quoted heredoc (<<'EOF') → no shell expansion; the block is fully substituted in QML and
+        // contains no $ / quotes, so it's emitted verbatim. Guard on the file existing so we never
+        // create an orphan thunar.css before the CLI has run.
+        Quickshell.execDetached(["sh", "-c", `f="$HOME/.config/gtk-3.0/thunar.css"; [ -f "$f" ] || exit 0; sed -i '/caelestia-shell:thunar-extra BEGIN/,/caelestia-shell:thunar-extra END/d' "$f" 2>/dev/null; cat >> "$f" <<'CAELEOF'\n${block}\nCAELEOF\n`]);
+    }
+
+    // Recolour Papirus folder icons to the accent. caelestia's CLI does this too, but via
+    // `sudo papirus-folders` — which runs as root, so it can't reach the user's writable theme copy
+    // and only targets the read-only nix store. We run it as the USER (no sudo) so papirus-folders
+    // resolves to the writable copy at ~/.local/share/icons/Papirus-Dark (placed by home-manager's
+    // home.activation.papirusWritable). The colour NAME is derived from the accent hue, mirroring
+    // caelestia's own hue→Papirus-colour mapping (utils/theme.py).
+    function applyPapirusFolders(): void {
+        // Recolour the writable Papirus-Dark copy, THEN bounce the GSettings icon theme so already-open
+        // GTK apps repaint. Thunar runs on native Wayland → it reads settings from GSettings
+        // (org.gnome.desktop.interface), NOT XSETTINGS, and GtkIconTheme only re-reads on a NAME
+        // change — so we toggle to Adwaita and back (the brief sleep stops dconf coalescing the two
+        // writes into a no-op). Chained with && so the bounce only fires after the recolour finishes.
+        const c = root.papirusFolderColour();
+        // gsettings is preferred but may be absent/schema-less, so fall back to a raw dconf write
+        // (GTK reads either). The Adwaita→Papirus-Dark toggle (with a brief sleep so dconf doesn't
+        // coalesce the two writes into a no-op) is what forces GtkIconTheme to reload. No `-u`: that
+        // needs gtk-update-icon-cache, and the bounce already forces the reload.
+        Quickshell.execDetached(["sh", "-c", `papirus-folders -C ${c} -t Papirus-Dark; gsettings set org.gnome.desktop.interface icon-theme Adwaita 2>/dev/null || dconf write /org/gnome/desktop/interface/icon-theme "'Adwaita'"; sleep 0.3; gsettings set org.gnome.desktop.interface icon-theme Papirus-Dark 2>/dev/null || dconf write /org/gnome/desktop/interface/icon-theme "'Papirus-Dark'"`]);
+    }
+
+    function papirusFolderColour(): string {
+        const c = current.m3primary;
+        const r = Math.round(c.r * 255);
+        const g = Math.round(c.g * 255);
+        const b = Math.round(c.b * 255);
+        const maxV = Math.max(r, g, b);
+        const minV = Math.min(r, g, b);
+        const brightness = maxV;
+        const saturation = maxV === 0 ? 0 : Math.floor((maxV - minV) * 100 / maxV);
+
+        // Low saturation → greyscale folders
+        if (saturation < 20)
+            return brightness < 85 ? "black" : brightness < 170 ? "grey" : "white";
+
+        // Medium-low saturation + bright → pale variants (matches caelestia's use_pale)
+        const pale = saturation < 60 && brightness > 180;
+
+        // Blue dominant
+        if (b > r && b > g) {
+            const rRatio = b > 0 ? Math.floor(r * 100 / b) : 0;
+            const gRatio = b > 0 ? Math.floor(g * 100 / b) : 0;
+            if (rRatio > 70 && gRatio > 70)
+                return Math.abs(r - g) < 15 ? "blue" : r > g ? "violet" : "cyan";
+            if (rRatio > 60 && r > g)
+                return "violet";
+            if (gRatio > 60 && g > r)
+                return "cyan";
+            return "blue";
+        }
+
+        // Red dominant
+        if (r > g && r > b) {
+            if (g > b + 30) {
+                const rgRatio = r > 0 ? Math.floor(g * 100 / r) : 0;
+                if (pale)
+                    return rgRatio > 70 && brightness < 220 ? "palebrown" : "paleorange";
+                return rgRatio > 70 && brightness < 180 ? "brown" : "orange";
+            }
+            if (b > g + 20)
+                return "pink";
+            return pale ? "pink" : "red";
+        }
+
+        // Green dominant
+        if (g > r && g > b)
+            return r > b + 30 ? "yellow" : "green";
+
+        return "grey";
     }
 
     // Live border colours via hyprctl keyword IPC — no file edits, no reload
@@ -125,6 +226,14 @@ Singleton {
         for (let i = 0; i < 16; i++)
             map[`color${i}`] = `#${toHex(current[`term${i}`])}`;
 
+        // Dedicated prompt-accent slots — shell-colors.sh references these as \e[38;5;16m / 17m.
+        // Palette-indexed (not absolute RGB) so kitty re-renders the already-drawn bash prompt in
+        // place when the scheme changes — no Ctrl-C / fresh prompt needed.
+        const promptAccent = current.m3primary;
+        const promptDim = Qt.rgba(promptAccent.r * 0.82, promptAccent.g * 0.82, promptAccent.b * 0.82, 1);
+        map["color16"] = `#${toHex(promptDim)}`;
+        map["color17"] = `#${toHex(promptAccent)}`;
+
         // Persisted file, included by kitty.conf, so new terminals pick it up
         const lines = ["# Colours managed by caelestia (Colours.qml)"];
         for (const [k, v] of Object.entries(map))
@@ -141,25 +250,26 @@ Singleton {
     // prompt (__cl_ps1_reload). No `kitty @ send-text` push — that types into whatever is in the
     // foreground (Claude Code, vim, ...) and corrupts it. Long-lived shells recolour on next prompt.
     function applyShellColours(): void {
+        // Prompt colours are PALETTE-INDEXED: kitty term colour 16 = dim accent, 17 = accent (set in
+        // applyKittyColours). Because PS1 references those palette slots rather than absolute RGB,
+        // kitty re-renders the already-drawn prompt IN PLACE the instant the scheme changes — no
+        // Ctrl-C, no fresh prompt, same line. This file just maps the CL_* vars PS1 uses onto the
+        // slots; its contents are static (only the palette behind 16/17 changes).
         const accent = current.m3primary;
-        const dim = Qt.rgba(accent.r * 0.82, accent.g * 0.82, accent.b * 0.82, 1);
-        const trip = c => `${Math.round(c.r * 255)};${Math.round(c.g * 255)};${Math.round(c.b * 255)}`;
-        const s = trip(accent);
-        const d = trip(dim);
         const lines = [
-            "# Generated by caelestia (Colours.qml) — PS1 colours, pulled each prompt",
-            `# accent = #${toHex(accent)}  (CL_FG_SECONDARY = accent, CL_FG_PRIMARY = darker)`,
+            "# Generated by caelestia (Colours.qml) — PS1 colours via kitty palette slots 16/17",
+            `# accent = #${toHex(accent)}  (CL_FG_SECONDARY = colour17 = accent, CL_FG_PRIMARY = colour16 = darker)`,
             "# Bash-bracketed (non-printing markers)",
-            `export CL_FG_PRIMARY_BASH="\\[\\e[38;2;${d}m\\]"`,
-            `export CL_FG_SECONDARY_BASH="\\[\\e[38;2;${s}m\\]"`,
-            `export CL_BG_PRIMARY_BASH="\\[\\e[48;2;${d}m\\]"`,
-            `export CL_BG_SECONDARY_BASH="\\[\\e[48;2;${s}m\\]"`,
+            `export CL_FG_PRIMARY_BASH="\\[\\e[38;5;16m\\]"`,
+            `export CL_FG_SECONDARY_BASH="\\[\\e[38;5;17m\\]"`,
+            `export CL_BG_PRIMARY_BASH="\\[\\e[48;5;16m\\]"`,
+            `export CL_BG_SECONDARY_BASH="\\[\\e[48;5;17m\\]"`,
             `export CL_RESET_BASH="\\[\\e[0m\\]"`,
             "# Raw ANSI (no markers)",
-            `export CL_FG_PRIMARY_RAW=$'\\e[38;2;${d}m'`,
-            `export CL_FG_SECONDARY_RAW=$'\\e[38;2;${s}m'`,
-            `export CL_BG_PRIMARY_RAW=$'\\e[48;2;${d}m'`,
-            `export CL_BG_SECONDARY_RAW=$'\\e[48;2;${s}m'`,
+            `export CL_FG_PRIMARY_RAW=$'\\e[38;5;16m'`,
+            `export CL_FG_SECONDARY_RAW=$'\\e[38;5;17m'`,
+            `export CL_BG_PRIMARY_RAW=$'\\e[48;5;16m'`,
+            `export CL_BG_SECONDARY_RAW=$'\\e[48;5;17m'`,
             `export CL_RESET_RAW=$'\\e[0m'`,
             "# Select appropriate set",
             `if [ -n "$BASH_VERSION" ]; then`,
@@ -177,11 +287,7 @@ Singleton {
             "fi"
         ];
         shellColours.setText(lines.join("\n") + "\n");
-
-        // Instant refresh for IDLE shells: send Ctrl-C only to kitty windows whose sole foreground
-        // process is a shell — that starts a fresh prompt which re-sources the colours above.
-        // Windows running a TUI (Claude Code, vim, yazi, ...) are skipped and stay queued.
-        Quickshell.execDetached(["sh", "-c", `for s in ${root.kittySocketBase}-*; do [ -S "$s" ] || continue; for w in $(kitty @ --to "unix:$s" ls 2>/dev/null | jq -r '.[].tabs[].windows[] | select((.foreground_processes|length)==1) | select(.foreground_processes[0].cmdline[0]|test("(^|/)-?(bash|zsh|fish|dash|sh)$")) | .id' 2>/dev/null); do printf '\\003' | kitty @ --to "unix:$s" send-text --match "id:$w" --stdin 2>/dev/null; done; done`]);
+        // No Ctrl-C push needed: existing prompts recolour live via the palette (applyKittyColours).
     }
 
     Component.onCompleted: debounceTimer.triggered()
