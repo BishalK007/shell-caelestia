@@ -37,6 +37,7 @@
           withI3 = false;
         };
         caelestia-cli = inputs.caelestia-cli.packages.${pkgs.stdenv.hostPlatform.system}.default;
+        cliproxyapi = pkgs.callPackage ./nix/cliproxyapi.nix {};
       };
       with-cli = caelestia-shell.override {withCli = true;};
       debug = caelestia-shell.override {debug = true;};

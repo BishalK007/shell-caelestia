@@ -100,18 +100,8 @@ Scope {
         // qmllint enable unresolved-type
         name: "ephemera"
         description: "Toggle Ephemera AI chat"
-        onPressed: {
-            const p = Visibilities.getPopoutsForActive();
-            if (!p)
-                return;
-            if (p.currentName === "ephemera" && p.hasCurrent) {
-                p.hasCurrent = false;
-            } else {
-                p.currentName = "ephemera";
-                p.hasCurrent = true;
-                p.guardOpen();
-            }
-        }
+        // Opens the full upstream Ephemera UI (same slideout as the bar button).
+        onPressed: EphemeraPort.toggle()
     }
 
     // qmllint disable unresolved-type

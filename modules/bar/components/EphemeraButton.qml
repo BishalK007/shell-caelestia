@@ -10,7 +10,9 @@ Item {
     required property var popouts // BarPopouts.Wrapper
     required property var bar      // Bar root (for mapping the icon position into popout coords)
 
-    readonly property bool active: popouts.currentName === "ephemera" && popouts.hasCurrent
+    // Click now opens the full upstream Ephemera UI (the vendored port slideout).
+    // The original caelestia-native popout stays reachable via the Super+A keybind.
+    readonly property bool active: EphemeraPort.visible
 
     implicitWidth: icon.implicitHeight + Tokens.padding.small * 2
     implicitHeight: icon.implicitHeight
@@ -30,15 +32,7 @@ Item {
         implicitWidth: implicitHeight
         implicitHeight: icon.implicitHeight + Tokens.padding.small * 2
         radius: Tokens.rounding.full
-        onClicked: {
-            if (root.active) {
-                root.popouts.hasCurrent = false;
-            } else {
-                root.popouts.currentName = "ephemera";
-                root.popouts.hasCurrent = true;
-                root.popouts.guardOpen();
-            }
-        }
+        onClicked: EphemeraPort.toggle()
     }
 
     MaterialIcon {

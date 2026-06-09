@@ -12,6 +12,7 @@
   lm_sensors,
   swappy,
   wl-clipboard,
+  libsecret,
   libqalculate,
   bash,
   hyprland,
@@ -30,6 +31,7 @@
   pkg-config,
   caelestia-cli,
   cliphist,
+  cliproxyapi,
   debug ? false,
   withCli ? false,
   extraRuntimeDeps ? [],
@@ -47,6 +49,8 @@
       swappy
       wl-clipboard
       cliphist
+      libsecret # provides secret-tool for Ephemera's encrypted API-key keyring
+      cliproxyapi # local OAuth proxy for Ephemera's login auth mode
       libqalculate
       bash
       hyprland
@@ -140,6 +144,15 @@ in
 
       mkdir -p $out/lib
       ln -s ${extras}/lib/* $out/lib/
+
+      # Quickshell registers with xdg-desktop-portal under the app id
+      # "org.quickshell", but we only wrap its `qs` binary and never pull in
+      # quickshell's share/applications. Expose its desktop entry on our own
+      # share so the portal can resolve the app id (silences the
+      # "App info not found for 'org.quickshell'" warning).
+      mkdir -p $out/share/applications
+      ln -s ${quickshell}/share/applications/org.quickshell.desktop \
+        $out/share/applications/org.quickshell.desktop
 
       # Ensure wrap_term_launch.sh is executable
       chmod 755 $out/share/caelestia-shell/assets/wrap_term_launch.sh

@@ -5,6 +5,7 @@
 //@ pragma DefaultEnv QT_QUICK_FLICKABLE_WHEEL_DECELERATION=10000
 
 import "modules"
+import "modules/ephemera"
 import "modules/drawers"
 import "modules/background"
 import "modules/areapicker"
@@ -17,6 +18,7 @@ ShellRoot {
 
     Background {}
     Drawers {}
+    EphemeraPortHost {}
     AreaPicker {}
     Lock {
         id: lock
