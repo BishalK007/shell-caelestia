@@ -24,23 +24,38 @@ Item {
     readonly property bool previewing: current?.isImage ?? false
     readonly property int previewWidth: Tokens.sizes.launcher.itemWidth * 0.85
 
-    // Decode ONLY the currently-highlighted image to a cache file (one at a time)
+    // Decode the currently-highlighted entry: images -> cache file, text -> full string.
+    // (cliphist's list preview is truncated, so text is decoded here for the full view.)
     property string previewId: ""
     property bool previewReady: false
+    property string previewText: ""
     readonly property string previewFile: previewId ? `${Paths.cache}/clipboard/${previewId}` : ""
 
     onCurrentChanged: {
         previewReady = false;
-        if (current && current.isImage) {
-            previewId = current.id;
-            decodeProc.running = true;
-        } else {
+        previewText = "";
+        if (!current) {
             previewId = "";
+            return;
         }
+        previewId = current.id;
+        if (current.isImage)
+            decodeProc.running = true;
+        else
+            textProc.running = true;
     }
 
-    implicitWidth: listView.width + (previewing ? previewWidth + Tokens.spacing.large : 0)
-    implicitHeight: listView.implicitHeight
+    // Height of a full maxShown-row list; used as a floor so the widget (and the
+    // preview panel) keeps a usable size even when only a few items are present.
+    readonly property int minHeight: (Tokens.sizes.launcher.itemHeight + Tokens.spacing.small) * Config.launcher.maxShown - Tokens.spacing.small
+
+    // Right-hand preview is always present (constant width) so the list never shifts
+    implicitWidth: listView.width + previewWidth + Tokens.spacing.large
+    implicitHeight: Math.max(listView.implicitHeight, minHeight)
+
+    // Re-read cliphist each time clipboard mode opens, so copies made after shell
+    // startup show up (the service only auto-loads once, on Component.onCompleted).
+    Component.onCompleted: Clipboard.reload()
 
     Process {
         id: decodeProc
@@ -49,6 +64,15 @@ Item {
         onExited: code => {
             if (code === 0 && root.previewId)
                 root.previewReady = true;
+        }
+    }
+
+    Process {
+        id: textProc
+
+        command: ["cliphist", "decode", root.previewId]
+        stdout: StdioCollector {
+            onStreamFinished: root.previewText = text
         }
     }
 
@@ -108,15 +132,17 @@ Item {
         anchors.top: parent.top
         anchors.bottom: parent.bottom
 
-        width: root.previewing ? root.previewWidth : 0
+        width: root.previewWidth
         clip: true
         radius: Tokens.rounding.large
         color: Colours.palette.m3surfaceContainer
 
+        // Image entries: show the decoded image
         Image {
             anchors.fill: parent
             anchors.margins: Tokens.padding.normal
 
+            visible: root.previewing
             asynchronous: true
             cache: false
             fillMode: Image.PreserveAspectFit
@@ -125,10 +151,29 @@ Item {
             sourceSize.height: height
         }
 
-        Behavior on width {
-            Anim {
-                duration: Tokens.anim.durations.large
-                easing: Tokens.anim.emphasizedDecel
+        // Text entries: full content, scrollable when it overflows
+        StyledFlickable {
+            id: textFlick
+
+            anchors.fill: parent
+            anchors.margins: Tokens.padding.larger
+
+            visible: !root.previewing
+            clip: true
+            contentWidth: width
+            contentHeight: previewLabel.implicitHeight
+
+            StyledScrollBar.vertical: StyledScrollBar {
+                flickable: textFlick
+            }
+
+            StyledText {
+                id: previewLabel
+
+                width: textFlick.width
+                text: root.previewText
+                wrapMode: Text.Wrap
+                font.pointSize: Tokens.font.size.normal
             }
         }
     }

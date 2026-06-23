@@ -32,6 +32,8 @@
   caelestia-cli,
   cliphist,
   cliproxyapi,
+  python3,
+  dbus,
   debug ? false,
   withCli ? false,
   extraRuntimeDeps ? [],
@@ -54,6 +56,8 @@
       libqalculate
       bash
       hyprland
+      python3 # kdeglobals merge for KDE/Qt (Dolphin) theming in Colours.qml
+      dbus # dbus-send: KGlobalSettings notifyChange so open KDE apps recolour live
     ]
     ++ extraRuntimeDeps
     ++ lib.optional withCli caelestia-cli;

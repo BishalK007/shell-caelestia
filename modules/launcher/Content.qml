@@ -109,6 +109,18 @@ Item {
             placeholderText: qsTr("Type \"%1\" for Commands and \"%2\" for cliphistory").arg(GlobalConfig.launcher.actionPrefix).arg(Clipboard.prefix)
 
             onAccepted: {
+                // Clipboard command: ":clear" / ":> clear" wipes the whole history
+                if (text.startsWith(Clipboard.prefix)) {
+                    let cmd = text.slice(Clipboard.prefix.length).trim();
+                    if (cmd.startsWith(">"))
+                        cmd = cmd.slice(1).trim();
+                    if (cmd.toLowerCase() === "clear") {
+                        Clipboard.clearAll();
+                        search.text = Clipboard.prefix;
+                        return;
+                    }
+                }
+
                 const currentItem = list.currentList?.currentItem;
                 if (currentItem) {
                     if (list.showWallpapers) {

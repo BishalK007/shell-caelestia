@@ -45,10 +45,22 @@ Singleton {
         }
     }
 
+    // Wipe the entire clipboard history
+    function clearAll(): void {
+        wipeProc.running = true;
+    }
+
     // Ensure the wl-paste -> cliphist watchers run (text + images), once per session.
     Component.onCompleted: {
         Quickshell.execDetached(["sh", "-c", 'f="${XDG_RUNTIME_DIR:-/tmp}/caelestia-cliphist.pid"; if [ -e "$f" ] && kill -0 "$(cat "$f" 2>/dev/null)" 2>/dev/null; then exit 0; fi; wl-paste --type text --watch cliphist store & echo $! > "$f"; wl-paste --type image --watch cliphist store &']);
         reload();
+    }
+
+    Process {
+        id: wipeProc
+
+        command: ["cliphist", "wipe"]
+        onExited: root.reload()
     }
 
     Process {

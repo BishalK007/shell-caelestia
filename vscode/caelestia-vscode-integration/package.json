@@ -1,0 +1,53 @@
+{
+    "name": "caelestia-vscode-integration",
+    "displayName": "Caelestia",
+    "description": "Live VS Code theme driven by the Caelestia shell colour scheme. Watches the shell's generated scheme.json and re-applies colours instantly, no reload.",
+    "version": "1.0.0",
+    "publisher": "caelestia",
+    "license": "MIT",
+    "engines": {
+        "vscode": "^1.70.0"
+    },
+    "categories": [
+        "Themes"
+    ],
+    "main": "./extension.js",
+    "activationEvents": [
+        "onStartupFinished"
+    ],
+    "contributes": {
+        "themes": [
+            {
+                "label": "Caelestia",
+                "uiTheme": "vs-dark",
+                "path": "./themes/caelestia.json",
+                "_watch": true
+            }
+        ],
+        "commands": [
+            {
+                "command": "caelestia.applyTheme",
+                "title": "Caelestia: Apply Theme"
+            },
+            {
+                "command": "caelestia.rebuildTheme",
+                "title": "Caelestia: Rebuild Theme From Scheme"
+            }
+        ],
+        "configuration": {
+            "title": "Caelestia",
+            "properties": {
+                "caelestia.autoApply": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Set the Caelestia colour theme as the active theme automatically the first time the extension activates."
+                },
+                "caelestia.schemePath": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Override the path to the Caelestia scheme.json. Empty = $XDG_STATE_HOME/caelestia/scheme.json (default ~/.local/state/caelestia/scheme.json)."
+                }
+            }
+        }
+    }
+}

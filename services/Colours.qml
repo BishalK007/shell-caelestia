@@ -104,6 +104,7 @@ Singleton {
         applyShellColours();
         applyPapirusFolders();
         applyThunarExtra();
+        applyKdeColours();
     }
 
     // Toolbar + menubar rules missing from the CLI's thunar.css template (Thunar looks unstyled there
@@ -142,17 +143,12 @@ Singleton {
     // home.activation.papirusWritable). The colour NAME is derived from the accent hue, mirroring
     // caelestia's own hue→Papirus-colour mapping (utils/theme.py).
     function applyPapirusFolders(): void {
-        // Recolour the writable Papirus-Dark copy, THEN bounce the GSettings icon theme so already-open
-        // GTK apps repaint. Thunar runs on native Wayland → it reads settings from GSettings
-        // (org.gnome.desktop.interface), NOT XSETTINGS, and GtkIconTheme only re-reads on a NAME
-        // change — so we toggle to Adwaita and back (the brief sleep stops dconf coalescing the two
-        // writes into a no-op). Chained with && so the bounce only fires after the recolour finishes.
+        // Recolour the writable Papirus-Dark copy to the accent. New GTK windows pick this up on
+        // launch. We intentionally do NOT bounce the GSettings icon theme to force already-open apps
+        // to repaint: that toggle (icon-theme → Adwaita → back) raced across rapid theme switches and
+        // could leave the icon theme stuck on Adwaita. The recolour-on-disk is enough.
         const c = root.papirusFolderColour();
-        // gsettings is preferred but may be absent/schema-less, so fall back to a raw dconf write
-        // (GTK reads either). The Adwaita→Papirus-Dark toggle (with a brief sleep so dconf doesn't
-        // coalesce the two writes into a no-op) is what forces GtkIconTheme to reload. No `-u`: that
-        // needs gtk-update-icon-cache, and the bounce already forces the reload.
-        Quickshell.execDetached(["sh", "-c", `papirus-folders -C ${c} -t Papirus-Dark; gsettings set org.gnome.desktop.interface icon-theme Adwaita 2>/dev/null || dconf write /org/gnome/desktop/interface/icon-theme "'Adwaita'"; sleep 0.3; gsettings set org.gnome.desktop.interface icon-theme Papirus-Dark 2>/dev/null || dconf write /org/gnome/desktop/interface/icon-theme "'Papirus-Dark'"`]);
+        Quickshell.execDetached(["sh", "-c", `papirus-folders -C ${c} -t Papirus-Dark`]);
     }
 
     function papirusFolderColour(): string {
@@ -203,6 +199,174 @@ Singleton {
             return r > b + 30 ? "yellow" : "green";
 
         return "grey";
+    }
+
+    // Theme KDE/Qt apps (Dolphin, Ark, Gwenview, Kate, …) the way KColorScheme actually reads
+    // colours: the [Colors:*]/[WM]/[ColorEffects:*] groups in ~/.config/kdeglobals. We MERGE into
+    // kdeglobals (a small python pass preserves the user's other keys — icons, fonts, shortcuts),
+    // also drop a self-owned ~/.local/share/color-schemes/Caelestia.colors so the scheme shows in
+    // any KDE picker, then emit the legacy KGlobalSettings "notifyChange" DBus signal so ALREADY-
+    // OPEN KDE apps recolour live — no app restart, no plasmashell, no plasma-apply-colorscheme
+    // (unreliable off Plasma). Same end result as end-4's kde-material-you-colors, but self-contained.
+    function applyKdeColours(): void {
+        const c = current;
+        const rgb = col => `${Math.round(col.r * 255)},${Math.round(col.g * 255)},${Math.round(col.b * 255)}`;
+
+        const groups = {
+            "General": {
+                Name: "Caelestia",
+                ColorScheme: "Caelestia"
+            },
+            "Colors:View": {
+                BackgroundNormal: rgb(c.m3surface),
+                BackgroundAlternate: rgb(c.m3surfaceContainerLow),
+                ForegroundNormal: rgb(c.m3onSurface),
+                ForegroundInactive: rgb(c.m3onSurfaceVariant),
+                ForegroundActive: rgb(c.m3primary),
+                ForegroundLink: rgb(c.m3primary),
+                ForegroundVisited: rgb(c.m3secondary),
+                ForegroundNegative: rgb(c.m3error),
+                ForegroundNeutral: rgb(c.m3tertiary),
+                ForegroundPositive: rgb(c.m3success),
+                DecorationFocus: rgb(c.m3primary),
+                DecorationHover: rgb(c.m3primary)
+            },
+            "Colors:Window": {
+                BackgroundNormal: rgb(c.m3surface),
+                BackgroundAlternate: rgb(c.m3surfaceContainer),
+                ForegroundNormal: rgb(c.m3onSurface),
+                ForegroundInactive: rgb(c.m3onSurfaceVariant),
+                ForegroundActive: rgb(c.m3primary),
+                ForegroundLink: rgb(c.m3primary),
+                ForegroundNegative: rgb(c.m3error),
+                ForegroundNeutral: rgb(c.m3tertiary),
+                ForegroundPositive: rgb(c.m3success),
+                DecorationFocus: rgb(c.m3primary),
+                DecorationHover: rgb(c.m3primary)
+            },
+            "Colors:Button": {
+                BackgroundNormal: rgb(c.m3surfaceContainer),
+                BackgroundAlternate: rgb(c.m3surfaceContainerHigh),
+                ForegroundNormal: rgb(c.m3onSurface),
+                ForegroundInactive: rgb(c.m3onSurfaceVariant),
+                ForegroundActive: rgb(c.m3primary),
+                ForegroundNegative: rgb(c.m3error),
+                ForegroundNeutral: rgb(c.m3tertiary),
+                ForegroundPositive: rgb(c.m3success),
+                DecorationFocus: rgb(c.m3primary),
+                DecorationHover: rgb(c.m3primary)
+            },
+            "Colors:Selection": {
+                BackgroundNormal: rgb(c.m3primary),
+                BackgroundAlternate: rgb(c.m3primaryContainer),
+                ForegroundNormal: rgb(c.m3onPrimary),
+                ForegroundInactive: rgb(c.m3onPrimary),
+                ForegroundActive: rgb(c.m3onPrimary),
+                ForegroundLink: rgb(c.m3onPrimary),
+                ForegroundNegative: rgb(c.m3error),
+                ForegroundNeutral: rgb(c.m3tertiary),
+                ForegroundPositive: rgb(c.m3success),
+                DecorationFocus: rgb(c.m3primary),
+                DecorationHover: rgb(c.m3primary)
+            },
+            "Colors:Tooltip": {
+                BackgroundNormal: rgb(c.m3surfaceContainer),
+                BackgroundAlternate: rgb(c.m3surfaceContainerHigh),
+                ForegroundNormal: rgb(c.m3onSurface),
+                ForegroundInactive: rgb(c.m3onSurfaceVariant),
+                DecorationFocus: rgb(c.m3primary),
+                DecorationHover: rgb(c.m3primary)
+            },
+            "Colors:Complementary": {
+                BackgroundNormal: rgb(c.m3surfaceContainer),
+                BackgroundAlternate: rgb(c.m3surfaceContainerHigh),
+                ForegroundNormal: rgb(c.m3onSurface),
+                ForegroundInactive: rgb(c.m3onSurfaceVariant),
+                DecorationFocus: rgb(c.m3primary),
+                DecorationHover: rgb(c.m3primary)
+            },
+            "Colors:Header": {
+                BackgroundNormal: rgb(c.m3surfaceContainer),
+                BackgroundAlternate: rgb(c.m3surfaceContainerHigh),
+                ForegroundNormal: rgb(c.m3onSurface),
+                ForegroundInactive: rgb(c.m3onSurfaceVariant),
+                DecorationFocus: rgb(c.m3primary),
+                DecorationHover: rgb(c.m3primary)
+            },
+            "WM": {
+                activeBackground: rgb(c.m3surfaceContainer),
+                activeForeground: rgb(c.m3onSurface),
+                inactiveBackground: rgb(c.m3surface),
+                inactiveForeground: rgb(c.m3onSurfaceVariant)
+            },
+            "ColorEffects:Inactive": {
+                Enable: "true",
+                ChangeSelectionColor: "true",
+                Color: rgb(c.m3surface),
+                ColorAmount: "0.025",
+                ColorEffect: "2",
+                ContrastAmount: "0.1",
+                ContrastEffect: "2",
+                IntensityAmount: "0",
+                IntensityEffect: "0"
+            },
+            "ColorEffects:Disabled": {
+                Enable: "true",
+                Color: rgb(c.m3surfaceContainer),
+                ColorAmount: "0",
+                ColorEffect: "0",
+                ContrastAmount: "0.65",
+                ContrastEffect: "1",
+                IntensityAmount: "0.1",
+                IntensityEffect: "0"
+            }
+        };
+
+        // payload is plain JSON (no single quotes in any key/value), so it's safe inside the shell
+        // single-quoted env var. The python body is a quoted heredoc (no shell/QML expansion).
+        const payload = JSON.stringify(groups);
+        Quickshell.execDetached(["sh", "-c", `CAEL_KDE_JSON='${payload}' python3 - <<'PY'
+import os, json, configparser
+from pathlib import Path
+
+data = json.loads(os.environ["CAEL_KDE_JSON"])
+home = Path.home()
+
+# Self-owned standalone scheme file (safe to fully overwrite)
+def render(groups):
+    lines = []
+    for g, kv in groups.items():
+        lines.append("[" + g + "]")
+        for k, v in kv.items():
+            lines.append(k + "=" + str(v))
+        lines.append("")
+    return "\\n".join(lines)
+
+cs = home / ".local/share/color-schemes"
+cs.mkdir(parents=True, exist_ok=True)
+(cs / "Caelestia.colors").write_text(render(data))
+
+# Merge colour groups into kdeglobals WITHOUT touching the user's other keys
+kg = home / ".config/kdeglobals"
+cfg = configparser.ConfigParser(strict=False, interpolation=None)
+cfg.optionxform = str
+ok = True
+if kg.exists():
+    try:
+        cfg.read(kg, encoding="utf-8")
+    except Exception:
+        ok = False  # unparseable — don't risk clobbering it
+if ok:
+    for g, kv in data.items():
+        if not cfg.has_section(g):
+            cfg.add_section(g)
+        for k, v in kv.items():
+            cfg.set(g, k, str(v))
+    kg.parent.mkdir(parents=True, exist_ok=True)
+    with open(kg, "w", encoding="utf-8") as f:
+        cfg.write(f, space_around_delimiters=False)
+PY
+dbus-send --session --type=signal /KGlobalSettings org.kde.KGlobalSettings.notifyChange int32:0 int32:0 2>/dev/null || true`]);
     }
 
     // Live border colours via hyprctl keyword IPC — no file edits, no reload
