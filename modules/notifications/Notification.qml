@@ -93,7 +93,9 @@ StyledRect {
             }
 
             // Otherwise a click opens the notification panel (and dismisses this popup).
-            Visibilities.getForActive().sidebar = true;
+            const visibilities = Visibilities.getForActive();
+            if (visibilities)
+                visibilities.sidebar = true;
             root.modelData.popup = false;
         }
 

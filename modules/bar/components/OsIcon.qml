@@ -16,7 +16,8 @@ Item {
         cursorShape: Qt.PointingHandCursor
         onClicked: {
             const visibilities = Visibilities.getForActive();
-            visibilities.launcher = !visibilities.launcher;
+            if (visibilities)
+                visibilities.launcher = !visibilities.launcher;
         }
     }
 

@@ -46,6 +46,7 @@ Item {
     }
 
     Component.onCompleted: Visibilities.loadPopouts(screen, this)
+    Component.onDestruction: Visibilities.unloadPopouts(this)
 
     property string detachedMode
     property string queuedMode

@@ -241,6 +241,7 @@ StyledWindow {
         id: visibilities
 
         Component.onCompleted: Visibilities.load(root.screen, this)
+        Component.onDestruction: Visibilities.unload(this)
     }
 
     Interactions {
@@ -303,7 +304,8 @@ StyledWindow {
 
             fullscreen: root.hasFullscreen
 
-            Component.onCompleted: Visibilities.bars.set(root.screen, this)
+            Component.onCompleted: Visibilities.bars.set(root.screen.name, this)
+            Component.onDestruction: Visibilities.dropValue(Visibilities.bars, this)
         }
     }
 

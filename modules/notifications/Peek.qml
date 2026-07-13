@@ -28,7 +28,9 @@ StyledClippingRect {
     StateLayer {
         radius: parent.radius
         onClicked: {
-            Visibilities.getForActive().sidebar = true;
+            const visibilities = Visibilities.getForActive();
+            if (visibilities)
+                visibilities.sidebar = true;
             root.modelData.popup = false;
         }
     }
