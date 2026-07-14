@@ -43,7 +43,11 @@ StyledWindow {
         if (focusGrab.active || panels.popouts.isDetached)
             return 0;
 
-        if (monitor?.lastIpcObject.specialWorkspace?.name || monitor?.activeWorkspace.lastIpcObject.windows > 0)
+        // Padding > 0 makes this window's input mask eat an edge band of the screen,
+        // so only enable it when the workspace is definitely empty — with unknown
+        // monitor/workspace state (mid-hotplug) pointer input must pass through.
+        const ws = monitor?.activeWorkspace;
+        if (!ws || monitor?.lastIpcObject.specialWorkspace?.name || ws.lastIpcObject.windows > 0)
             return 0;
 
         const thresholds = [];

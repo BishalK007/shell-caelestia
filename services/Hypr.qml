@@ -83,7 +83,11 @@ Singleton {
     }
 
     function monitorFor(screen: ShellScreen): HyprlandMonitor {
-        return Hyprland.monitorFor(screen);
+        // Resolve by name over the live list instead of Hyprland.monitorFor: hotplug
+        // destroys and recreates HyprlandMonitor objects, and reading monitors.values
+        // here makes caller BINDINGS re-evaluate when the list changes, so they pick up
+        // the new object instead of keeping a stale/null one forever.
+        return monitors.values.find(m => m.name === screen?.name) ?? null;
     }
 
     function reloadDynamicConfs(): void {
