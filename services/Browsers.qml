@@ -19,8 +19,12 @@ Singleton {
     property var favs: [] // [id]
 
     // Combined entries: [{ id, name, subtitle, icon, command }]
+    // Profiles are only listed while their browser binary is installed —
+    // leftover config dirs from uninstalled browsers would otherwise show
+    // ghost entries that fail to launch.
     readonly property var items: {
         const out = [];
+        const bins = browsers.map(b => b.bin);
         for (const b of browsers)
             out.push({
                 id: `browser:${b.bin}`,
@@ -30,24 +34,26 @@ Singleton {
                 picture: "",
                 command: [b.bin]
             });
-        for (const p of chromeProfiles)
-            out.push({
-                id: `chrome:${p.dir}`,
-                name: p.name,
-                subtitle: qsTr("Chrome — %1").arg(p.dir),
-                icon: "google-chrome",
-                picture: p.picture,
-                command: ["google-chrome-stable", `--profile-directory=${p.dir}`]
-            });
-        for (const p of heliumProfiles)
-            out.push({
-                id: `helium:${p.dir}`,
-                name: p.name,
-                subtitle: qsTr("Helium — %1").arg(p.dir),
-                icon: "helium",
-                picture: p.picture,
-                command: ["helium", `--profile-directory=${p.dir}`]
-            });
+        if (bins.includes("google-chrome-stable"))
+            for (const p of chromeProfiles)
+                out.push({
+                    id: `chrome:${p.dir}`,
+                    name: p.name,
+                    subtitle: qsTr("Chrome — %1").arg(p.dir),
+                    icon: "google-chrome",
+                    picture: p.picture,
+                    command: ["google-chrome-stable", `--profile-directory=${p.dir}`]
+                });
+        if (bins.includes("helium"))
+            for (const p of heliumProfiles)
+                out.push({
+                    id: `helium:${p.dir}`,
+                    name: p.name,
+                    subtitle: qsTr("Helium — %1").arg(p.dir),
+                    icon: "helium",
+                    picture: p.picture,
+                    command: ["helium", `--profile-directory=${p.dir}`]
+                });
         return out;
     }
 
