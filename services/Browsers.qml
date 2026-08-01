@@ -5,7 +5,7 @@ import Quickshell
 import Quickshell.Io
 import qs.utils
 
-// Browser launcher: installed browsers + Chrome profiles (from Local State).
+// Browser launcher: installed browsers + Chromium-family profiles (from Local State).
 // Favourites are pinned (sorted first) and persisted to a state file.
 Singleton {
     id: root
@@ -14,7 +14,8 @@ Singleton {
     readonly property string prefix: ">browser "
 
     property var browsers: [] // [{ bin, name, icon }]
-    property var profiles: [] // [{ dir, name }]
+    property var chromeProfiles: [] // [{ dir, name, picture }]
+    property var heliumProfiles: [] // [{ dir, name, picture }]
     property var favs: [] // [id]
 
     // Combined entries: [{ id, name, subtitle, icon, command }]
@@ -29,7 +30,7 @@ Singleton {
                 picture: "",
                 command: [b.bin]
             });
-        for (const p of profiles)
+        for (const p of chromeProfiles)
             out.push({
                 id: `chrome:${p.dir}`,
                 name: p.name,
@@ -37,6 +38,15 @@ Singleton {
                 icon: "google-chrome",
                 picture: p.picture,
                 command: ["google-chrome-stable", `--profile-directory=${p.dir}`]
+            });
+        for (const p of heliumProfiles)
+            out.push({
+                id: `helium:${p.dir}`,
+                name: p.name,
+                subtitle: qsTr("Helium — %1").arg(p.dir),
+                icon: "helium",
+                picture: p.picture,
+                command: ["helium", `--profile-directory=${p.dir}`]
             });
         return out;
     }
@@ -61,6 +71,31 @@ Singleton {
     function reload(): void {
         browsersProc.running = true;
         chromeState.reload();
+        heliumState.reload();
+    }
+
+    // Parse a Chromium-family "Local State" JSON into [{ dir, name, picture }]
+    function parseChromiumProfiles(jsonText: string, configDir: string): var {
+        const ic = JSON.parse(jsonText)?.profile?.info_cache ?? ({});
+        const raw = [];
+        for (const dir in ic) {
+            const v = ic[dir] ?? ({});
+            raw.push({
+                dir,
+                name: v.name || dir,
+                gaia_name: v.gaia_name || "",
+                user_name: v.user_name || "",
+                picture_file: (v.is_using_custom_avatar && v.custom_avatar_picture_file_name) || v.gaia_picture_file_name || ""
+            });
+        }
+        resolveDisplayNames(raw);
+        const out = raw.map(p => ({
+            dir: p.dir,
+            name: p.display,
+            picture: p.picture_file ? `${Paths.home}/.config/${configDir}/${p.dir}/${p.picture_file}` : ""
+        }));
+        out.sort((a, b) => a.name.localeCompare(b.name));
+        return out;
     }
 
     // Port of the elephant chromeprofiles dedup:
@@ -116,7 +151,7 @@ Singleton {
     Process {
         id: browsersProc
 
-        command: ["sh", "-c", 'for b in firefox brave google-chrome-stable chromium vivaldi-stable librewolf microsoft-edge-stable qutebrowser; do command -v "$b" >/dev/null 2>&1 && echo "$b"; done']
+        command: ["sh", "-c", 'for b in firefox brave google-chrome-stable chromium vivaldi-stable librewolf microsoft-edge-stable qutebrowser zen zen-beta helium; do command -v "$b" >/dev/null 2>&1 && echo "$b"; done']
         stdout: StdioCollector {
             onStreamFinished: {
                 const names = {
@@ -127,7 +162,10 @@ Singleton {
                     "vivaldi-stable": "Vivaldi",
                     "librewolf": "LibreWolf",
                     "microsoft-edge-stable": "Edge",
-                    "qutebrowser": "qutebrowser"
+                    "qutebrowser": "qutebrowser",
+                    "zen": "Zen",
+                    "zen-beta": "Zen",
+                    "helium": "Helium"
                 };
                 const icons = {
                     "firefox": "firefox",
@@ -137,7 +175,10 @@ Singleton {
                     "vivaldi-stable": "vivaldi",
                     "librewolf": "librewolf",
                     "microsoft-edge-stable": "microsoft-edge",
-                    "qutebrowser": "qutebrowser"
+                    "qutebrowser": "qutebrowser",
+                    "zen": "zen-browser",
+                    "zen-beta": "zen-browser",
+                    "helium": "helium"
                 };
                 const out = [];
                 for (const line of text.split("\n")) {
@@ -162,31 +203,28 @@ Singleton {
         path: `${Paths.home}/.config/google-chrome/Local State`
         onLoaded: {
             try {
-                const ic = JSON.parse(text())?.profile?.info_cache ?? ({});
-                const raw = [];
-                for (const dir in ic) {
-                    const v = ic[dir] ?? ({});
-                    raw.push({
-                        dir,
-                        name: v.name || dir,
-                        gaia_name: v.gaia_name || "",
-                        user_name: v.user_name || "",
-                        picture_file: v.gaia_picture_file_name || ""
-                    });
-                }
-                root.resolveDisplayNames(raw);
-                const out = raw.map(p => ({
-                    dir: p.dir,
-                    name: p.display,
-                    picture: p.picture_file ? `${Paths.home}/.config/google-chrome/${p.dir}/${p.picture_file}` : ""
-                }));
-                out.sort((a, b) => a.name.localeCompare(b.name));
-                root.profiles = out;
+                root.chromeProfiles = root.parseChromiumProfiles(text(), "google-chrome");
             } catch (e) {
-                root.profiles = [];
+                root.chromeProfiles = [];
             }
         }
-        onLoadFailed: root.profiles = []
+        onLoadFailed: root.chromeProfiles = []
+    }
+
+    // Helium profiles from Local State (JSON)
+    FileView {
+        id: heliumState
+
+        printErrors: false
+        path: `${Paths.home}/.config/net.imput.helium/Local State`
+        onLoaded: {
+            try {
+                root.heliumProfiles = root.parseChromiumProfiles(text(), "net.imput.helium");
+            } catch (e) {
+                root.heliumProfiles = [];
+            }
+        }
+        onLoadFailed: root.heliumProfiles = []
     }
 
     // Persisted favourites
