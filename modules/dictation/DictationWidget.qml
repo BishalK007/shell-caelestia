@@ -119,6 +119,12 @@ Variants {
                     font.weight: 500
                     color: Colours.palette.m3onSurface
                 }
+
+                StyledText {
+                    Layout.alignment: Qt.AlignVCenter
+                    text: Dictation.providerName
+                    color: Colours.palette.m3onSurfaceVariant
+                }
             }
         }
     }

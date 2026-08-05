@@ -29,6 +29,7 @@ ShellRoot {
     BatteryMonitor {}
     AudioRouting {}
     DictationWidget {}
+    DictationPicker {}
     IdleMonitors {
         lock: lock
     }

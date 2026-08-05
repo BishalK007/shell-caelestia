@@ -117,7 +117,7 @@ Scope {
     CustomShortcut {
         // qmllint enable unresolved-type
         name: "dictation"
-        description: "Toggle OpenWhispr dictation"
+        description: "Toggle dictation (Wispr Flow / OpenWhispr picker)"
         onPressed: Dictation.toggle()
     }
 
