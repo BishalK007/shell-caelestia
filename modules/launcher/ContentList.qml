@@ -167,6 +167,9 @@ Item {
         padding: Tokens.padding.large
 
         anchors.horizontalCenter: parent.horizontalCenter
+        // In clipboard mode the widget is list + preview panel; centre the
+        // placeholder over the list column only, not the combined width.
+        anchors.horizontalCenterOffset: root.state === "clipboard" ? -((clipboardList.item?.previewWidth ?? 0) + Tokens.spacing.large) / 2 : 0
         anchors.verticalCenter: parent.verticalCenter
 
         MaterialIcon {

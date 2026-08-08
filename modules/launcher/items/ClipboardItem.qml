@@ -25,9 +25,10 @@ Item {
         return m ? qsTr("Image · %1 · %2").arg(m[1]).arg(m[2].replace("x", "×")) : p;
     }
 
-    // Hovering highlights the row so the preview panel follows the mouse
+    // Hovering highlights the row so the preview panel follows the mouse,
+    // unless keyboard nav is scrolling the list under a stationary cursor
     HoverHandler {
-        onHoveredChanged: if (hovered && root.view)
+        onHoveredChanged: if (hovered && root.view && !root.view.keyboardNavActive)
             root.view.currentIndex = root.index
     }
 

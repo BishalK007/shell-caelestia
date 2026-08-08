@@ -17,8 +17,11 @@ Singleton {
     property var entries: []
 
     function query(search: string): var {
-        const s = (search.startsWith(prefix) ? search.slice(prefix.length) : search).trim().toLowerCase();
-        return s ? entries.filter(e => e.preview.toLowerCase().includes(s)) : entries;
+        const s = (search.startsWith(prefix) ? search.slice(prefix.length) : search).trim();
+        if (s.startsWith(">")) // command being typed (e.g. ">clear"), not a search
+            return entries;
+        const q = s.toLowerCase();
+        return q ? entries.filter(e => e.preview.toLowerCase().includes(q)) : entries;
     }
 
     function reload(): void {

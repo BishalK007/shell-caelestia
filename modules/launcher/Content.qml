@@ -45,6 +45,20 @@ Item {
         GlobalConfig.launcher.favouriteApps = favs;
     }
 
+    // Keyboard list nav. Flags keyboard priority on lists that support it, so a
+    // stationary hovering mouse can't steal the selection while the list scrolls.
+    function navigate(delta: int): void {
+        const l = list.currentList;
+        if (!l)
+            return;
+        if (l.noteKeyboardNav)
+            l.noteKeyboardNav();
+        if (delta > 0)
+            l.incrementCurrentIndex();
+        else
+            l.decrementCurrentIndex();
+    }
+
     implicitWidth: listWrapper.width + padding * 2
     implicitHeight: searchWrapper.height + listWrapper.height + padding * 2
 
@@ -109,12 +123,11 @@ Item {
             placeholderText: qsTr("Type \"%1\" for Commands and \"%2\" for cliphistory").arg(GlobalConfig.launcher.actionPrefix).arg(Clipboard.prefix)
 
             onAccepted: {
-                // Clipboard command: ":clear" / ":> clear" wipes the whole history
+                // Clipboard command: ":>clear" wipes the whole history. Plain ":clear"
+                // stays a normal search — otherwise the word "clear" is unsearchable.
                 if (text.startsWith(Clipboard.prefix)) {
-                    let cmd = text.slice(Clipboard.prefix.length).trim();
-                    if (cmd.startsWith(">"))
-                        cmd = cmd.slice(1).trim();
-                    if (cmd.toLowerCase() === "clear") {
+                    const cmd = text.slice(Clipboard.prefix.length).trim();
+                    if (cmd.startsWith(">") && cmd.slice(1).trim().toLowerCase() === "clear") {
                         Clipboard.clearAll();
                         search.text = Clipboard.prefix;
                         return;
@@ -146,8 +159,8 @@ Item {
                 }
             }
 
-            Keys.onUpPressed: list.currentList?.decrementCurrentIndex()
-            Keys.onDownPressed: list.currentList?.incrementCurrentIndex()
+            Keys.onUpPressed: root.navigate(-1)
+            Keys.onDownPressed: root.navigate(1)
 
             Keys.onEscapePressed: root.visibilities.launcher = false
 
@@ -163,17 +176,17 @@ Item {
 
                 if (event.modifiers & Qt.ControlModifier) {
                     if (event.key === Qt.Key_J || event.key === Qt.Key_N) {
-                        list.currentList?.incrementCurrentIndex();
+                        root.navigate(1);
                         event.accepted = true;
                     } else if (event.key === Qt.Key_K || event.key === Qt.Key_P) {
-                        list.currentList?.decrementCurrentIndex();
+                        root.navigate(-1);
                         event.accepted = true;
                     }
                 } else if (event.key === Qt.Key_Tab) {
-                    list.currentList?.incrementCurrentIndex();
+                    root.navigate(1);
                     event.accepted = true;
                 } else if (event.key === Qt.Key_Backtab || (event.key === Qt.Key_Tab && (event.modifiers & Qt.ShiftModifier))) {
-                    list.currentList?.decrementCurrentIndex();
+                    root.navigate(-1);
                     event.accepted = true;
                 }
             }
@@ -213,6 +226,32 @@ Item {
                 }
 
                 target: Visibilities
+            }
+        }
+
+        // Clipboard command hint: visible when the field holds just ":" (or a ">…"
+        // command being typed), so the ">clear" command is discoverable.
+        StyledText {
+            id: clipboardHint
+
+            readonly property string cmd: search.text.slice(Clipboard.prefix.length).trim()
+            readonly property bool clearReady: cmd.startsWith(">") && cmd.slice(1).trim().toLowerCase() === "clear"
+
+            anchors.right: clearIcon.left
+            anchors.rightMargin: Tokens.spacing.small
+            anchors.verticalCenter: parent.verticalCenter
+
+            visible: opacity > 0
+            opacity: list.showClipboard && (cmd === "" || cmd.startsWith(">")) ? 1 : 0
+
+            text: clearReady ? qsTr("Enter — wipe clipboard history") : qsTr(">clear — wipe clipboard history")
+            color: Colours.palette.m3onSurfaceVariant
+            font.pointSize: Tokens.font.size.small
+
+            Behavior on opacity {
+                Anim {
+                    type: Anim.StandardSmall
+                }
             }
         }
 

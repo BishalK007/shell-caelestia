@@ -88,6 +88,23 @@ Item {
         spacing: Tokens.spacing.small
         implicitHeight: (Tokens.sizes.launcher.itemHeight + spacing) * Math.min(Config.launcher.maxShown, count) - spacing
 
+        // Keyboard nav owns the selection briefly: when the list auto-scrolls, rows
+        // slide under a stationary cursor and fire hover-enters that would steal
+        // currentIndex back to the hovered row. Delegates skip hover-select while set.
+        property bool keyboardNavActive: false
+
+        function noteKeyboardNav(): void {
+            keyboardNavActive = true;
+            hoverGuard.restart();
+        }
+
+        Timer {
+            id: hoverGuard
+
+            interval: 250
+            onTriggered: listView.keyboardNavActive = false
+        }
+
         preferredHighlightBegin: 0
         preferredHighlightEnd: height
         highlightRangeMode: ListView.ApplyRange
