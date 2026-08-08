@@ -485,7 +485,7 @@ dbus-send --session --type=signal /KGlobalSettings org.kde.KGlobalSettings.notif
         id: shellColours
 
         printErrors: false
-        path: `${Paths.home}/.config/dotfiles/shell-colors.sh`
+        path: `${Paths.state}/shell-colors.sh`
     }
 
     ImageAnalyser {
