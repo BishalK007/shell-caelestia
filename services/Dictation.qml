@@ -130,7 +130,7 @@ Singleton {
         interval: 80
         onTriggered: {
             if (root._prevAddress)
-                Hyprland.dispatch(`focuswindow address:0x${root._prevAddress}`);
+                Hypr.dispatch(`focuswindow address:0x${root._prevAddress}`); // via Hypr: translates under the Lua config manager
             root._prevAddress = "";
         }
     }

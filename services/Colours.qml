@@ -83,8 +83,12 @@ Singleton {
     }
 
     function reloadHyprRules(): void {
-        const str = "keyword layerrule %1 %2, match:namespace caelestia-drawers";
-        Hypr.extras.batchMessage([str.arg("blur").arg(transparency.enabled ? 1 : 0), str.arg("ignore_alpha").arg(transparency.base - 0.03)]);
+        // Mode-aware (keyword under hyprlang, eval hl.layer_rule under the Lua
+        // config manager) — see Hypr.setLayerRules.
+        Hypr.setLayerRules("caelestia-drawers", {
+            blur: transparency.enabled,
+            ignore_alpha: transparency.base - 0.03
+        });
     }
 
     // Base of the socket kitty listens on (kitty.conf: listen_on). kitty appends -<pid>,
@@ -369,11 +373,18 @@ PY
 dbus-send --session --type=signal /KGlobalSettings org.kde.KGlobalSettings.notifyChange int32:0 int32:0 2>/dev/null || true`]);
     }
 
-    // Live border colours via hyprctl keyword IPC — no file edits, no reload
+    // Live border colours — mode-aware push (keyword under hyprlang, eval
+    // hl.config under the Lua config manager), PLUS a colors.conf write so the
+    // compositor boots with the right borders before the shell is up
+    // (hyprland.lua parses this file at startup; hyprland.conf `source`s it).
     function applyHyprColours(): void {
         const accent = toHex(current.m3primary);
         const muted = toHex(current.m3surfaceVariant);
-        Hypr.extras.batchMessage([`keyword general:col.active_border rgba(${accent}ff)`, `keyword general:col.inactive_border rgba(${muted}aa)`]);
+        Hypr.setConfigValues({
+            "general:col.active_border": `rgba(${accent}ff)`,
+            "general:col.inactive_border": `rgba(${muted}aa)`
+        });
+        hyprColoursFile.setText(`# Colors for hyprland\n$hyprland_active_border_color = rgba(${accent}ff)\n$hyprland_inactive_border_color = rgba(${muted}aa)\n`);
     }
 
     // Persist kitty colours (for new windows) + live-apply to running ones
@@ -470,6 +481,15 @@ dbus-send --session --type=signal /KGlobalSettings org.kde.KGlobalSettings.notif
         watchChanges: true
         onFileChanged: reload()
         onLoaded: root.load(text(), false)
+    }
+
+    // Write-only: boot-time border colours (parsed by hyprland.lua at startup,
+    // `source`d by hyprland.conf under hyprlang)
+    FileView {
+        id: hyprColoursFile
+
+        printErrors: false
+        path: `${Paths.home}/.config/hypr/colors.conf`
     }
 
     // Write-only: caelestia-managed kitty palette, included by kitty.conf
