@@ -11,6 +11,7 @@ import "modules/background"
 import "modules/areapicker"
 import "modules/lock"
 import "modules/dictation"
+import "modules/windowswitcher"
 import Quickshell
 
 ShellRoot {
@@ -30,6 +31,7 @@ ShellRoot {
     AudioRouting {}
     DictationWidget {}
     DictationPicker {}
+    WindowSwitcher {}
     IdleMonitors {
         lock: lock
     }
