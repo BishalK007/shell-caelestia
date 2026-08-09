@@ -17,7 +17,7 @@ StyledClippingRect {
     required property NotifData modelData
     readonly property int urgency: modelData?.urgency ?? NotificationUrgency.Normal
     readonly property bool hasImage: (modelData?.image.length ?? 0) > 0
-    readonly property bool hasAppIcon: (modelData?.appIcon.length ?? 0) > 0
+    readonly property bool hasAppIcon: (modelData?.resolvedAppIcon.length ?? 0) > 0
 
     implicitWidth: TokenConfig.sizes.notifs.image
     implicitHeight: TokenConfig.sizes.notifs.image
@@ -60,9 +60,9 @@ StyledClippingRect {
 
         ColouredIcon {
             implicitSize: Math.round(TokenConfig.sizes.notifs.image * 0.6)
-            source: Quickshell.iconPath(root.modelData.appIcon)
+            source: root.modelData.resolvedAppIcon
             colour: root.urgency === NotificationUrgency.Critical ? Colours.palette.m3onError : root.urgency === NotificationUrgency.Low ? Colours.palette.m3onSurface : Colours.palette.m3onSecondaryContainer
-            layer.enabled: root.modelData.appIcon.endsWith("symbolic")
+            layer.enabled: root.modelData.resolvedAppIcon.includes("symbolic")
         }
     }
 

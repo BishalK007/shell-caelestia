@@ -39,6 +39,39 @@ QtObject {
     property bool hasActionIcons
     property list<var> actions
 
+    // Body with markup stripped, for single-line previews (compact rows, popup
+    // preview, lock list): rich text can't be safely elided or sliced — a cut
+    // mid-tag shows raw HTML — so previews use this; only expanded views render
+    // the full markup.
+    readonly property string plainBody: body.replace(/<[^>]*>/g, "").replace(/&(amp|lt|gt|quot|apos|#39|nbsp);/g, (m, e) => ({
+                amp: "&",
+                lt: "<",
+                gt: ">",
+                quot: '"',
+                apos: "'",
+                "#39": "'",
+                nbsp: " "
+            })[e]).replace(/\s+/g, " ").trim()
+
+    // Stable icon for the sending app. Chromium-based browsers pass appIcon as
+    // a logo.png inside a volatile /tmp scoped dir (deleted moments after
+    // delivery), so prefer the app's desktop-entry icon and keep the raw
+    // appIcon only as a fallback. Empty when nothing resolves — consumers show
+    // a material icon instead.
+    readonly property string resolvedAppIcon: {
+        const entryIcon = appName ? DesktopEntries.heuristicLookup(appName)?.icon : "";
+        if (entryIcon) {
+            const p = Quickshell.iconPath(entryIcon, true);
+            if (p)
+                return p;
+        }
+        if (!appIcon)
+            return "";
+        if (appIcon.startsWith("/") || appIcon.startsWith("file://") || appIcon.startsWith("image://"))
+            return appIcon;
+        return Quickshell.iconPath(appIcon, true);
+    }
+
     readonly property bool hasFullscreen: {
         const monitor = Hypr.focusedMonitor;
         const specialName = monitor?.lastIpcObject.specialWorkspace?.name;
@@ -193,8 +226,14 @@ QtObject {
     }
 
     function maybeTriggerDummyImageLoader(): void {
-        if (image && !image.startsWith("image://icon/") && !image.startsWith(Paths.notifimagecache))
-            dummyImageLoader.active = true;
+        if (!image || image.startsWith(Paths.notifimagecache))
+            return;
+        // image://icon/ sources are normally stable theme icons — EXCEPT when
+        // they point into a volatile path (Chromium serves notification icons
+        // from /tmp/*scoped_dir*, deleted moments later); cache those too.
+        if (image.startsWith("image://icon/") && !image.includes("/tmp/"))
+            return;
+        dummyImageLoader.active = true;
     }
 
     function lock(item: Item): void {
