@@ -122,10 +122,16 @@ Item {
             // ── Input (default microphone) ──────────────────────────────────────
             Card {
                 StyledText {
-                    Layout.fillWidth: true
-                    text: Audio.source?.description || qsTr("Input device")
+                    text: qsTr("Main Mic")
                     font.weight: 500
+                }
+
+                StyledText {
+                    Layout.fillWidth: true
+                    text: qsTr("Input: %1").arg(Audio.source?.description || qsTr("None"))
                     elide: Text.ElideRight
+                    font.pointSize: Tokens.font.size.small
+                    color: Colours.palette.m3onSurfaceVariant
                 }
 
                 VolumeRow {
@@ -326,9 +332,11 @@ Item {
                         color: Colours.palette.m3onSurfaceVariant
                     }
                     VolumeRow {
+                        // Display volume: falls back to the persisted value while the jack
+                        // reports 0 (nothing plugged in); the icon still shows the state.
                         icon: Alsa.headphoneMuted ? "headset_off" : "headphones"
                         muted: Alsa.headphoneMuted
-                        value: Alsa.headphoneVolume / 100
+                        value: Alsa.headphoneDisplayVolume / 100
                         max: 1
                         onMoved: v => Alsa.setVolume("Headphone", v * 100)
                         onToggle: Alsa.setMuted("Headphone", !Alsa.headphoneMuted)

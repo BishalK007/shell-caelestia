@@ -11,6 +11,9 @@ Item {
     // Referencing a property forces the singleton to be constructed; VirtualSink's own
     // _tryInit (gated on the loopback nodes becoming ready) does the actual pin/route.
     readonly property bool active: VirtualSink.available
+    // Same for AudioPersist: constructing it loads the saved volumes and restores them
+    // (default sink/source, music pair, app streams, ALSA hardware) at boot.
+    readonly property bool persistLoaded: AudioPersist.loaded
 
     Component.onCompleted: VirtualSink.pinLoopbacks()
 }

@@ -7,6 +7,7 @@ import Quickshell.Services.Pipewire
 import Caelestia
 import Caelestia.Config
 import Caelestia.Services
+import qs.services
 
 Singleton {
     id: root
@@ -34,6 +35,7 @@ Singleton {
         if (sink?.ready && sink?.audio) {
             sink.audio.muted = false;
             sink.audio.volume = Math.max(0, Math.min(GlobalConfig.services.maxVolume, newVolume));
+            AudioPersist.rememberSinkVolume(sink, sink.audio.volume);
         }
     }
 
@@ -49,6 +51,7 @@ Singleton {
         if (source?.ready && source?.audio) {
             source.audio.muted = false;
             source.audio.volume = Math.max(0, Math.min(GlobalConfig.services.maxVolume, newVolume));
+            AudioPersist.rememberSourceVolume(source, source.audio.volume);
         }
     }
 
@@ -81,6 +84,7 @@ Singleton {
         if (stream?.ready && stream?.audio) {
             stream.audio.muted = false;
             stream.audio.volume = Math.max(0, Math.min(GlobalConfig.services.maxVolume, newVolume));
+            AudioPersist.rememberStreamVolume(stream, stream.audio.volume);
         }
     }
 

@@ -75,6 +75,8 @@ Singleton {
         if (musicOutputNode?.ready && musicOutputNode?.audio) {
             musicOutputNode.audio.muted = false;
             musicOutputNode.audio.volume = Math.max(0, Math.min(GlobalConfig.services.maxVolume, v));
+            // Pair key (music_sink + this output) — separate from the device's direct volume.
+            AudioPersist.rememberMusicVolume(musicOutputNode, musicOutputNode.audio.volume);
         }
     }
 

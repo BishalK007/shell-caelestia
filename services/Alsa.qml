@@ -3,6 +3,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import qs.services
 
 // ALSA hardware mixer (Master / Speaker / Headphone) for the internal sound card.
 // Quickshell only exposes PipeWire, so the raw ALSA controls need `amixer`. Volumes
@@ -26,6 +27,11 @@ Singleton {
 
     property int refCount
 
+    // Slider position for Headphone/AUX: the control reads 0 while nothing is plugged
+    // into the jack, so fall back to the last persisted volume — the row's icon still
+    // shows the disconnected/muted state.
+    readonly property int headphoneDisplayVolume: headphoneVolume > 0 ? headphoneVolume : Math.round(Math.max(0, (AudioPersist.volumes["alsa:Headphone"] ?? 0) * 100))
+
     function setVolume(control: string, percent: int): void {
         const clamped = Math.max(0, Math.min(100, Math.round(percent)));
         // Optimistic local update for a responsive slider; the periodic refresh reconciles.
@@ -37,6 +43,7 @@ Singleton {
             root.headphoneVolume = clamped;
         _pendingVol = ["amixer", "-D", root.card, "set", control, `${clamped}%`];
         volDebounce.restart();
+        AudioPersist.remember(`alsa:${control}`, clamped / 100);
     }
 
     function setMuted(control: string, muted: bool): void {
@@ -52,6 +59,46 @@ Singleton {
 
     function refresh(): void {
         getProc.running = true;
+    }
+
+    // Called by AudioPersist once its state file is loaded: read the hardware, then
+    // apply the persisted volumes ONCE (in getProc's handler). Also serves as the
+    // boot-time read — normal reads are ref-gated behind the popout being open.
+    function restoreSaved(): void {
+        _restoreWanted = true;
+        refresh();
+    }
+
+    property bool _restoreWanted: false
+
+    function _applySaved(): void {
+        const cmds = [];
+        for (const c of ["Master", "Speaker", "Headphone"]) {
+            const v = AudioPersist.recall(`alsa:${c}`);
+            if (v < 0)
+                continue;
+            const pct = Math.max(0, Math.min(100, Math.round(v * 100)));
+            const hw = c === "Master" ? root.masterVolume : c === "Speaker" ? root.speakerVolume : root.headphoneVolume;
+            if (pct === hw)
+                continue;
+            cmds.push(`amixer -D ${root.card} set ${c} ${pct}% 2>/dev/null`);
+            // Optimistic; the next periodic read reconciles.
+            if (c === "Master")
+                root.masterVolume = pct;
+            else if (c === "Speaker")
+                root.speakerVolume = pct;
+            else
+                root.headphoneVolume = pct;
+        }
+        if (cmds.length > 0) {
+            console.log(`[Alsa] restore: ${cmds.length} control(s)`);
+            restoreProc.command = ["sh", "-c", cmds.join("; ")];
+            restoreProc.running = true;
+        }
+    }
+
+    Process {
+        id: restoreProc
     }
 
     property var _pendingVol: []
@@ -115,6 +162,10 @@ Singleton {
                     }
                 }
                 root.available = any;
+                if (root._restoreWanted && any) {
+                    root._restoreWanted = false;
+                    root._applySaved();
+                }
             }
         }
     }
