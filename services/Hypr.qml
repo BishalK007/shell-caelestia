@@ -54,6 +54,7 @@ Singleton {
     property var _pendingModeRequests: []
 
     signal configReloaded
+    signal monitorsHotplugged
 
     function _deferUntilProbed(thunk: var): bool {
         if (root.cmProbed)
@@ -202,6 +203,31 @@ Singleton {
         }
     }
 
+    // Update a monitor rule live. `fields` maps monitorv2 option names
+    // (sdr_max_luminance, ...) to values; numbers stay unquoted. Lua: hl.monitor
+    // MERGES into the rule matching `selector` (verified: mode/scale/bitdepth
+    // survive a partial update). The selector must be the EXACT output string of
+    // the winning config rule (e.g. "desc:...") — a name selector like "DP-2"
+    // can resurrect a stale name-keyed rule as the winning one. Legacy hyprlang
+    // falls back to per-field monitorv2 keywords addressed by connector name.
+    function setMonitorRule(name: string, selector: string, fields: var): void {
+        if (_deferUntilProbed(() => root.setMonitorRule(name, selector, fields)))
+            return;
+        if (root.luaConfig) {
+            const entries = [`output = "${selector.replace(/\\/g, "\\\\").replace(/"/g, "\\\"")}"`];
+            for (const k in fields) {
+                const v = fields[k];
+                entries.push(typeof v === "number" ? `${k} = ${v}` : `${k} = "${v}"`);
+            }
+            extras.batchMessage([`eval hl.monitor({ ${entries.join(", ")} })`]);
+        } else {
+            const reqs = [];
+            for (const k in fields)
+                reqs.push(`keyword monitorv2[${name}]:${k} ${fields[k]}`);
+            extras.batchMessage(reqs);
+        }
+    }
+
     // Set layer rules for a layershell namespace. `effects` maps effect names
     // (blur, ignore_alpha, ...) to bool/number values. Lua: one NAMED rule per
     // effect — a stable name makes re-issues reuse the rule (matches replace;
@@ -297,8 +323,15 @@ Singleton {
                 return;
 
             if (n === "configreloaded") {
+                // Monitor rules (cm/HDR presets, sdr luminance) may have changed
+                // and there is no separate event for that — refresh so consumers
+                // (e.g. Brightness method resolution) see the new state.
+                Hyprland.refreshMonitors();
                 root.configReloaded();
                 root.reloadDynamicConfs();
+            } else if (n === "monitoradded" || n === "monitorremoved") {
+                root.monitorsHotplugged();
+                Hyprland.refreshMonitors();
             } else if (["workspace", "moveworkspace", "activespecial", "focusedmon"].includes(n)) {
                 Hyprland.refreshWorkspaces();
                 Hyprland.refreshMonitors();

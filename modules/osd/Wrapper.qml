@@ -75,8 +75,14 @@ Item {
     }
 
     Connections {
-        function onBrightnessChanged(): void {
+        // Pop only on user/IPC intent — init and hotplug re-detection also
+        // move `brightness`, and the OSD shouldn't flash for those.
+        function onUserChangeSerialChanged(): void {
             root.show();
+            root.brightness = root.monitor?.brightness ?? 0;
+        }
+
+        function onBrightnessChanged(): void {
             root.brightness = root.monitor?.brightness ?? 0;
         }
 

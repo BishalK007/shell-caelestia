@@ -82,6 +82,13 @@ Item {
             shouldBeActive: Config.osd.enableBrightness
 
             sourceComponent: CustomMouseArea {
+                // Greyed out instead of silently driving the wrong device:
+                // "unsupported" means no DDC/CI, not internal, not HDR.
+                readonly property bool controllable: root.monitor !== null && root.monitor.method !== "unsupported" && root.monitor.method !== "pending"
+
+                enabled: controllable
+                opacity: controllable ? 1 : 0.4
+
                 function onWheel(event: WheelEvent) {
                     const monitor = root.monitor;
                     if (!monitor)
@@ -98,7 +105,7 @@ Item {
                 FilledSlider {
                     anchors.fill: parent
 
-                    icon: `brightness_${(Math.round(value * 6) + 1)}`
+                    icon: root.monitor?.method === "unsupported" ? "brightness_alert" : `brightness_${(Math.round((value || 0) * 6) + 1)}`
                     value: root.brightness
                     onMoved: root.monitor?.setBrightness(value)
                 }

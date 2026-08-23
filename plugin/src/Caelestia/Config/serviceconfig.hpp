@@ -27,6 +27,20 @@ class ServiceConfig : public ConfigObject {
     CONFIG_GLOBAL_PROPERTY(int, visualiserBars, 45)
     CONFIG_GLOBAL_PROPERTY(qreal, audioIncrement, 0.1)
     CONFIG_GLOBAL_PROPERTY(qreal, brightnessIncrement, 0.1)
+    // Escape hatch: broken DDC/CI firmware can hang the i2c bus, so all probing/writes can be disabled
+    CONFIG_GLOBAL_PROPERTY(bool, ddcEnabled, true)
+    // Keep-latest write spacing per DDC monitor; VESA floor is 50ms, raise for flaky HDMI i2c paths
+    CONFIG_GLOBAL_PROPERTY(int, ddcMinWriteIntervalMs, 100)
+    // Empty = auto-resolve (firmware > platform > raw); set to pin e.g. amdgpu_bl1 on hybrid-GPU laptops
+    CONFIG_GLOBAL_PROPERTY(QString, backlightDevice)
+    // Slider range for SDR white luminance on HDR monitors (nits); 80 = SDR reference white
+    CONFIG_GLOBAL_PROPERTY(int, hdrMinNits, 80)
+    CONFIG_GLOBAL_PROPERTY(int, hdrMaxNits, 400)
+    // DRM hotplug events arrive in bursts during link training; debounce before re-detecting
+    CONFIG_GLOBAL_PROPERTY(int, hotplugDebounceMs, 1500)
+    // Per-monitor overrides: { "match": "model:X"|"serial:X"|"name:X", "method": "ddc|backlight|hdr|apple|none",
+    // "hdrMinNits": N, "hdrMaxNits": N }
+    CONFIG_GLOBAL_PROPERTY(QVariantList, brightnessRules)
     CONFIG_GLOBAL_PROPERTY(qreal, maxVolume, 1.0)
     CONFIG_GLOBAL_PROPERTY(bool, smartScheme, true)
     CONFIG_GLOBAL_PROPERTY(QString, defaultPlayer, u"Spotify"_s)
