@@ -28,6 +28,12 @@ import qs.utils
 Singleton {
     id: root
 
+    // MASTER SWITCH — memorization is OFF. The restore machinery was force-applying
+    // stale values into the music chain (e.g. a mis-captured `sink:` volume for the
+    // routed output landing on it during default-sink races), choking playback below
+    // what every slider showed. Keep this false until the redesigned scheme lands.
+    readonly property bool enabled: false
+
     // key -> volume (0..1). Reassigned on change so bindings (e.g. the Headphone
     // display fallback in Alsa) stay reactive.
     property var volumes: ({})
@@ -39,7 +45,7 @@ Singleton {
     }
 
     function remember(key: string, vol: real): void {
-        if (!key || !(vol >= 0))
+        if (!root.enabled || !key || !(vol >= 0))
             return;
         root.volumes = Object.assign({}, root.volumes, {
             [key]: vol
@@ -75,7 +81,7 @@ Singleton {
     property int _pumpTicks: 0
 
     function _schedule(key: string, node: PwNode): void {
-        if (!key || !node)
+        if (!root.enabled || !key || !node)
             return;
         const p = Object.assign({}, root._pending);
         p[key] = node;
@@ -85,6 +91,8 @@ Singleton {
     }
 
     function _apply(key: string, node: PwNode): void {
+        if (!root.enabled)
+            return;
         const v = recall(key);
         if (v >= 0) {
             node.audio.volume = Math.max(0, Math.min(GlobalConfig.services.maxVolume, v));
@@ -148,7 +156,7 @@ Singleton {
     property int _streamTicks: 0
 
     function _applyStreams(): void {
-        if (!root.loaded)
+        if (!root.enabled || !root.loaded)
             return;
         let waiting = false;
         for (const s of Audio.streams) {
@@ -217,6 +225,8 @@ Singleton {
 
     function _init(): void {
         root.loaded = true;
+        if (!root.enabled)
+            return;
         // Catch selections that were announced before our state file loaded.
         _onSinkSelected();
         _onSourceSelected();
