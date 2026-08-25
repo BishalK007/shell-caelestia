@@ -4,6 +4,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Io
+import qs.utils
 
 // Front-end for voice dictation with two engines:
 //  - Wispr Flow:  driven via `wispr-flow wispr-flow://{start,stop}-hands-free`
@@ -53,6 +54,14 @@ Singleton {
         Quickshell.execDetached(["dbus-send", "--session", "--type=method_call", `--dest=${root.service}`, root.path, `${root.iface}.Toggle`]);
     }
 
+    // Tell the engine to finish the session, without touching our UI state.
+    function _stopEngine(providerId: string): void {
+        if (providerId === "wisprflow")
+            Quickshell.execDetached(["app2unit", "--", "wispr-flow", "wispr-flow://stop-hands-free"]);
+        else
+            _toggleWhispr();
+    }
+
     function toggle(): void {
         if (state === "converting")
             return;
@@ -98,22 +107,50 @@ Singleton {
         provider = providerId;
 
         if (providerId === "wisprflow")
-            Quickshell.execDetached(["wispr-flow", "wispr-flow://start-hands-free"]);
+            Quickshell.execDetached(["app2unit", "--", "wispr-flow", "wispr-flow://start-hands-free"]);
         else
             _toggleWhispr();
 
         state = "listening";
+        sessionFile.setText(JSON.stringify({ provider: providerId, state: "listening" }));
         refocusTimer.restart();
     }
 
     function stop(): void {
-        if (provider === "wisprflow")
-            Quickshell.execDetached(["wispr-flow", "wispr-flow://stop-hands-free"]);
-        else
-            _toggleWhispr();
-
+        _stopEngine(provider);
         state = "converting";
+        sessionFile.setText("");
         convertTimer.restart();
+    }
+
+    // Never leave the engine recording with no shell UI. The engine runs in its own
+    // systemd unit, so it survives the shell dying mid-dictation; on a clean shutdown
+    // we stop it directly, and the crash path is reconciled at next startup below.
+    Component.onDestruction: {
+        if (state === "listening")
+            _stopEngine(provider);
+    }
+
+    // Startup reconcile: a leftover "listening" session file means the shell died
+    // mid-dictation. Complete the session (the transcript stays available in the
+    // engine's own app) rather than adopting it — a mic recording with no UI is worse.
+    FileView {
+        id: sessionFile
+
+        printErrors: false
+        path: `${Paths.state}/dictation-session.json`
+        onLoaded: {
+            if (text() === "" || root.state !== "idle")
+                return;
+            try {
+                const s = JSON.parse(text());
+                if (s.state === "listening" && root.providers.some(p => p.id === s.provider)) {
+                    root._stopEngine(s.provider);
+                    Toaster.toast(qsTr("Dictation session completed"), qsTr("The shell exited mid-dictation — open %1 for the text").arg(root.providers.find(p => p.id === s.provider).name), "mic_off");
+                }
+            } catch (e) {}
+            setText("");
+        }
     }
 
     Timer {
@@ -147,6 +184,10 @@ Singleton {
         function stop(): void {
             if (root.state === "listening")
                 root.stop();
+        }
+
+        function getState(): string {
+            return root.state;
         }
 
         target: "dictation"
