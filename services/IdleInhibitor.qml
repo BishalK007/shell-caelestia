@@ -27,8 +27,10 @@ Singleton {
     IdleInhibitor {
         enabled: props.enabled
         window: PanelWindow {
-            implicitWidth: 0
-            implicitHeight: 0
+            // Idle inhibitors only count while their surface is mapped & visible.
+            // A 0x0 layer surface never maps, so the inhibitor was silently ignored.
+            implicitWidth: 1
+            implicitHeight: 1
             color: "transparent"
             mask: Region {}
         }
