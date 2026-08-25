@@ -65,8 +65,10 @@ Singleton {
     }
 
     function launch(entry: var): void {
+        // app2unit moves the browser into its own transient systemd unit so it
+        // survives the shell's cgroup being killed (shell restart/exit).
         if (entry && entry.command)
-            Quickshell.execDetached(entry.command);
+            Quickshell.execDetached(["app2unit", "--", ...entry.command]);
     }
 
     function toggleFav(id: string): void {

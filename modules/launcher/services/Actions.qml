@@ -45,7 +45,8 @@ Searcher {
                 Colours.setMode(command[1]);
             } else {
                 list.visibilities.launcher = false;
-                Quickshell.execDetached(command);
+                // Own unit so anything launched by an action outlives the shell
+                Quickshell.execDetached(["app2unit", "--", ...command]);
             }
         }
     }
