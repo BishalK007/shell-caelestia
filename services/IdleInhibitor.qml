@@ -7,19 +7,41 @@ import Quickshell.Wayland
 Singleton {
     id: root
 
+    // Full mode: inhibits every idle timeout (no lock, no screen off, no sleep).
     property alias enabled: props.enabled
+    // Sleep-only mode: lock and screen off still fire on idle, but sleep-type
+    // timeouts (suspend/hibernate) are blocked — for background jobs.
+    property alias sleepOnly: props.sleepOnly
+    readonly property bool active: props.enabled || props.sleepOnly
     readonly property alias enabledSince: props.enabledSince
 
-    onEnabledChanged: {
-        if (enabled)
-            props.enabledSince = new Date();
+    // Handled by IdleMonitors (which owns the lock): locks the session, then blanks
+    signal lockAndBlankRequested
+
+    function lockAndBlank(): void {
+        lockAndBlankRequested();
     }
 
     PersistentProperties {
         id: props
 
         property bool enabled
+        property bool sleepOnly
         property date enabledSince
+
+        onEnabledChanged: {
+            if (enabled) {
+                sleepOnly = false;
+                enabledSince = new Date();
+            }
+        }
+
+        onSleepOnlyChanged: {
+            if (sleepOnly) {
+                enabled = false;
+                enabledSince = new Date();
+            }
+        }
 
         reloadableId: "idleInhibitor"
     }
@@ -51,6 +73,23 @@ Singleton {
 
         function disable(): void {
             props.enabled = false;
+        }
+
+        function toggleSleepOnly(): void {
+            props.sleepOnly = !props.sleepOnly;
+        }
+
+        function getMode(): string {
+            return props.enabled ? "full" : props.sleepOnly ? "sleepOnly" : "off";
+        }
+
+        function setMode(mode: string): void {
+            props.enabled = mode === "full";
+            props.sleepOnly = mode === "sleepOnly";
+        }
+
+        function lockAndBlank(): void {
+            root.lockAndBlank();
         }
 
         target: "idleInhibitor"

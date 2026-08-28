@@ -9,13 +9,13 @@ StyledRect {
     id: root
 
     Layout.fillWidth: true
-    implicitHeight: layout.implicitHeight + (IdleInhibitor.enabled ? activeChip.implicitHeight + activeChip.anchors.topMargin : 0) + Tokens.padding.large * 2
+    implicitHeight: layout.implicitHeight + (IdleInhibitor.active ? chipRow.implicitHeight + chipRow.anchors.topMargin : 0) + Tokens.padding.large * 2
 
     radius: Tokens.rounding.normal
     color: Colours.tPalette.m3surfaceContainer
     clip: true
 
-    RowLayout {
+    ColumnLayout {
         id: layout
 
         anchors.top: parent.top
@@ -24,65 +24,90 @@ StyledRect {
         anchors.margins: Tokens.padding.large
         spacing: Tokens.spacing.normal
 
-        StyledRect {
-            implicitWidth: implicitHeight
-            implicitHeight: icon.implicitHeight + Tokens.padding.smaller * 2
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Tokens.spacing.normal
 
-            radius: Tokens.rounding.full
-            color: IdleInhibitor.enabled ? Colours.palette.m3secondary : Colours.palette.m3secondaryContainer
+            StyledRect {
+                implicitWidth: implicitHeight
+                implicitHeight: icon.implicitHeight + Tokens.padding.smaller * 2
 
-            MaterialIcon {
-                id: icon
+                radius: Tokens.rounding.full
+                color: IdleInhibitor.active ? Colours.palette.m3secondary : Colours.palette.m3secondaryContainer
 
-                anchors.centerIn: parent
-                text: "coffee"
-                color: IdleInhibitor.enabled ? Colours.palette.m3onSecondary : Colours.palette.m3onSecondaryContainer
-                font.pointSize: Tokens.font.size.large
+                MaterialIcon {
+                    id: icon
+
+                    anchors.centerIn: parent
+                    text: "coffee"
+                    color: IdleInhibitor.active ? Colours.palette.m3onSecondary : Colours.palette.m3onSecondaryContainer
+                    font.pointSize: Tokens.font.size.large
+                }
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 0
+
+                StyledText {
+                    Layout.fillWidth: true
+                    text: qsTr("Keep Awake")
+                    font.pointSize: Tokens.font.size.normal
+                    elide: Text.ElideRight
+                }
+
+                StyledText {
+                    Layout.fillWidth: true
+                    text: IdleInhibitor.enabled ? qsTr("Preventing lock, screen off & sleep") : IdleInhibitor.sleepOnly ? qsTr("Locks & blanks normally, never sleeps") : qsTr("Normal power management")
+                    color: Colours.palette.m3onSurfaceVariant
+                    font.pointSize: Tokens.font.size.small
+                    elide: Text.ElideRight
+                }
+            }
+
+            StyledSwitch {
+                checked: IdleInhibitor.enabled
+                onToggled: IdleInhibitor.enabled = checked
             }
         }
 
-        ColumnLayout {
+        // Sleep-only mode: idle lock/screen off still fire, only suspend is blocked —
+        // for leaving jobs running in the background behind a locked screen.
+        RowLayout {
             Layout.fillWidth: true
-            spacing: 0
+            spacing: Tokens.spacing.normal
 
             StyledText {
                 Layout.fillWidth: true
-                text: qsTr("Keep Awake")
-                font.pointSize: Tokens.font.size.normal
-                elide: Text.ElideRight
-            }
-
-            StyledText {
-                Layout.fillWidth: true
-                text: IdleInhibitor.enabled ? qsTr("Preventing sleep mode") : qsTr("Normal power management")
+                text: qsTr("Block sleep only")
                 color: Colours.palette.m3onSurfaceVariant
                 font.pointSize: Tokens.font.size.small
                 elide: Text.ElideRight
             }
-        }
 
-        StyledSwitch {
-            checked: IdleInhibitor.enabled
-            onToggled: IdleInhibitor.enabled = checked
+            StyledSwitch {
+                checked: IdleInhibitor.sleepOnly
+                onToggled: IdleInhibitor.sleepOnly = checked
+            }
         }
     }
 
-    Loader {
-        id: activeChip
+    RowLayout {
+        id: chipRow
 
-        asynchronous: true
         anchors.bottom: parent.bottom
         anchors.left: parent.left
+        anchors.right: parent.right
         anchors.topMargin: Tokens.spacing.larger
-        anchors.bottomMargin: IdleInhibitor.enabled ? Tokens.padding.large : -implicitHeight
+        anchors.bottomMargin: IdleInhibitor.active ? Tokens.padding.large : -implicitHeight
         anchors.leftMargin: Tokens.padding.large
+        anchors.rightMargin: Tokens.padding.large
+        spacing: Tokens.spacing.normal
 
-        opacity: IdleInhibitor.enabled ? 1 : 0
-        scale: IdleInhibitor.enabled ? 1 : 0.5
+        opacity: IdleInhibitor.active ? 1 : 0
+        scale: IdleInhibitor.active ? 1 : 0.5
 
-        Component.onCompleted: active = Qt.binding(() => opacity > 0)
-
-        sourceComponent: StyledRect {
+        StyledRect {
             implicitWidth: activeText.implicitWidth + Tokens.padding.normal * 2
             implicitHeight: activeText.implicitHeight + Tokens.padding.small * 2
 
@@ -97,6 +122,19 @@ StyledRect {
                 color: Colours.palette.m3onPrimary
                 font.pointSize: Math.round(Tokens.font.size.small * 0.9)
             }
+        }
+
+        Item {
+            Layout.fillWidth: true
+        }
+
+        IconTextButton {
+            visible: IdleInhibitor.sleepOnly
+            type: IconTextButton.Tonal
+            icon: "lock"
+            text: qsTr("Lock now")
+            font.pointSize: Math.round(Tokens.font.size.small * 0.9)
+            onClicked: IdleInhibitor.lockAndBlank()
         }
 
         Behavior on anchors.bottomMargin {
